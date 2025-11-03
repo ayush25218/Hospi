@@ -110,6 +110,7 @@ export default function DoctorsListPage() {
           </Link>
         </div>
       </div>
+      
 
       {/* --- Search and Filters --- */}
       <div className="bg-white p-4 rounded-xl shadow-md space-y-4 md:space-y-0 md:flex md:items-center md:gap-4 non-printable">
