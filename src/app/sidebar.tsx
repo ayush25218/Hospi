@@ -87,7 +87,7 @@ const hrMenu: MenuItem[] = [
     path: '/staff',
     icon: LuUsers,
     submenu: [
-      { name: 'All Staff', path: '/staff', icon: LuList },
+      { name: 'All Staff', path: '/staff/list', icon: LuList },
       { name: 'Add Staff', path: '/staff/add', icon: LuPlus },
       { name: 'Roles & Permissions', path: '/staff/roles', icon: LuShieldCheck },
     ],
