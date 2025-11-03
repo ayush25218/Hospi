@@ -137,7 +137,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Responsive Sidebar Container */}
       <aside
         className={`fixed top-0 left-0 z-50 h-screen w-72
-                    bg-gradient-to-b from-indigo-900 to-gray-900 text-white shadow-xl
+                    bg-linear-to-b from-indigo-900 to-gray-900 text-white shadow-xl
                     transform transition-transform duration-300 ease-in-out
                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                     lg:sticky lg:translate-x-0 lg:shadow-none lg:z-auto`}
