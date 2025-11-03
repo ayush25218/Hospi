@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LuLayoutDashboard,
   LuStethoscope,
+  LuUsers,
   LuCalendarCheck,
   LuListTodo,
   LuUser,
@@ -14,16 +15,24 @@ import {
   LuBuilding2,
   LuMails,
   LuMessageCircle,
-  LuUsers,
   LuContact,
   LuFileCog,
   LuMapPin,
   LuChevronDown,
   LuPlus,
-  LuPencil,
   LuList,
   LuX,
-  LuFileChartPie,
+  LuSettings,
+  LuHospital,
+  LuBanknote,
+  LuReceipt,
+  LuCalendarOff,
+  LuMegaphone,
+
+  LuShieldCheck,
+  LuFileText,
+  LuFilePlus,
+  LuWallet,
 } from 'react-icons/lu';
 import { SiPaypal } from 'react-icons/si';
 
@@ -42,45 +51,78 @@ type MenuItem = {
   submenu?: SubMenuItem[];
 };
 
-// --- Menu Data ---
-const hospitalMenu: MenuItem[] = [
+// --- Naya, Behtar Menu Data ---
+
+const mainMenu: MenuItem[] = [
   { name: 'Dashboard', path: '/dashboard', icon: LuLayoutDashboard },
+];
+
+const clinicalMenu: MenuItem[] = [
   {
     name: 'Doctors',
     path: '/doctors',
     icon: LuStethoscope,
     submenu: [
-      { name: 'List', path: '/doctors', icon: LuList },
-      { name: 'Add', path: '/doctors/add', icon: LuPlus },
-      { name: 'Edit', path: '/doctors/edit', icon: LuPencil },
-      { name: 'Report', path: '/doctors/report', icon: LuFileChartPie },
+      { name: 'Doctor List', path: '/doctors', icon: LuList },
+      { name: 'Add Doctor', path: '/doctors/add', icon: LuPlus },
     ],
   },
-  { name: 'Appointment', path: '/appointment', icon: LuCalendarCheck },
-  { name: 'Todo List', path: '/todo', icon: LuListTodo },
   {
     name: 'Patients',
     path: '/patients',
     icon: LuUser,
     submenu: [
-      { name: 'List', path: '/patients', icon: LuList },
-      { name: 'Add', path: '/patients/add', icon: LuPlus },
-      { name: 'Edit', path: '/patients/edit', icon: LuPencil },
-      { name: 'Report', path: '/patients/report', icon: LuFileChartPie },
+      { name: 'Patient List', path: '/patients', icon: LuList },
+      { name: 'Add Patient', path: '/patients/add', icon: LuPlus },
     ],
   },
-  { name: 'Room Allotment', path: '/rooms', icon: LuBedDouble },
+  { name: 'Appointments', path: '/appointments', icon: LuCalendarCheck },
   { name: 'Departments', path: '/departments', icon: LuBuilding2 },
-  { name: 'Payments', path: '/payments', icon: SiPaypal },
+  { name: 'Room Allotment', path: '/rooms', icon: LuBedDouble },
 ];
 
-const adminMenu: MenuItem[] = [
+const hrMenu: MenuItem[] = [
+  {
+    name: 'Staff',
+    path: '/staff',
+    icon: LuUsers,
+    submenu: [
+      { name: 'All Staff', path: '/staff', icon: LuList },
+      { name: 'Add Staff', path: '/staff/add', icon: LuPlus },
+      { name: 'Roles & Permissions', path: '/staff/roles', icon: LuShieldCheck },
+    ],
+  },
+  { name: 'Leave Requests', path: '/leave', icon: LuCalendarOff },
+  { name: 'Todo List', path: '/todo', icon: LuListTodo },
+];
+
+const financeMenu: MenuItem[] = [
+  {
+    name: 'Billing',
+    path: '/billing',
+    icon: LuWallet,
+    submenu: [
+      { name: 'Create Invoice', path: '/billing/new', icon: LuFilePlus },
+      { name: 'All Invoices', path: '/billing', icon: LuFileText },
+    ],
+  },
+  { name: 'Payments', path: '/payments', icon: SiPaypal },
+  { name: 'Payroll', path: '/payroll', icon: LuBanknote },
+  { name: 'Expenses', path: '/expenses', icon: LuReceipt },
+];
+
+const commsMenu: MenuItem[] = [
   { name: 'Email', path: '/email', icon: LuMails, badge: 12 },
   { name: 'Chat', path: '/chat', icon: LuMessageCircle },
-  { name: 'Our Staffs', path: '/staff', icon: LuUsers },
+  { name: 'Notice Board', path: '/noticeboard', icon: LuMegaphone },
   { name: 'Contacts', path: '/contacts', icon: LuContact },
+];
+
+const systemMenu: MenuItem[] = [
+  { name: 'Analytics', path: '/analytics', icon: LuFileCog },
+  { name: 'Hospital Centres', path: '/centres', icon: LuMapPin },
   { name: 'File Manager', path: '/files', icon: LuFileCog },
-  { name: 'Our Centres', path: '/centres', icon: LuMapPin },
+  { name: 'Settings', path: '/settings', icon: LuSettings },
 ];
 
 // --- Props for Sidebar ---
@@ -92,12 +134,10 @@ type SidebarProps = {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
-      {/* Responsive Sidebar Container
-        - Mobile: 'fixed' with slide-in/out transition
-        - Desktop: 'sticky' and always visible
-      */}
+      {/* Responsive Sidebar Container */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen w-72 bg-white shadow-xl
+        className={`fixed top-0 left-0 z-50 h-screen w-72
+                    bg-gradient-to-b from-indigo-900 to-gray-900 text-white shadow-xl
                     transform transition-transform duration-300 ease-in-out
                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
                     lg:sticky lg:translate-x-0 lg:shadow-none lg:z-auto`}
@@ -105,22 +145,29 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="flex h-full flex-col overflow-y-auto">
           {/* Header */}
           <div className="flex h-20 items-center justify-between p-6">
-            <h1 className="text-xl font-bold text-gray-400 uppercase">
-              Hospital
-            </h1>
+            <div className="flex items-center gap-3">
+              <LuHospital className="h-8 w-8 text-indigo-300" />
+              <h1 className="text-2xl font-bold text-white tracking-tight">
+                Hospi!
+              </h1>
+            </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-full hover:bg-gray-100 lg:hidden"
+              className="p-2 rounded-full text-indigo-200 hover:bg-indigo-800 lg:hidden"
               aria-label="Close sidebar"
             >
-              <LuX className="h-6 w-6 text-gray-600" />
+              <LuX className="h-6 w-6" />
             </button>
           </div>
 
           {/* Menu Sections */}
-          <nav className="flex-1 px-4 space-y-6">
-            <SidebarMenu title="Hospital" items={hospitalMenu} />
-            <SidebarMenu title="Admin" items={adminMenu} />
+          <nav className="flex-1 px-4 space-y-6 pb-6">
+            <SidebarMenu title="Main" items={mainMenu} />
+            <SidebarMenu title="Clinical" items={clinicalMenu} />
+            <SidebarMenu title="Human Resources" items={hrMenu} />
+            <SidebarMenu title="Finance" items={financeMenu} />
+            <SidebarMenu title="Communication" items={commsMenu} />
+            <SidebarMenu title="System" items={systemMenu} />
           </nav>
         </div>
       </aside>
@@ -132,7 +179,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 function SidebarMenu({ title, items }: { title: string; items: MenuItem[] }) {
   return (
     <div className="space-y-2">
-      <h2 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+      <h2 className="px-4 text-xs font-semibold text-indigo-300 uppercase tracking-wider">
         {title}
       </h2>
       <ul className="space-y-1">
@@ -164,12 +211,12 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
       <li>
         <button
           onClick={toggleSubmenu}
-          className={`flex items-center justify-between w-full px-4 py-2.5 rounded-lg
+          className={`flex items-center justify-between w-full px-4 py-3 rounded-lg
                       transition-colors duration-200
                       ${
                         isSubmenuOpen
-                          ? 'text-green-600'
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'text-white'
+                          : 'text-gray-300 hover:text-white hover:bg-indigo-800'
                       }`}
         >
           <div className="flex items-center gap-3">
@@ -188,7 +235,7 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="ml-4 pl-4 border-l border-gray-200 overflow-hidden"
+              className="ml-4 pl-4 border-l border-indigo-700 overflow-hidden"
             >
               {item.submenu.map((subItem) => {
                 const isSubActive = pathname === subItem.path;
@@ -197,11 +244,11 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
                     <Link
                       href={subItem.path}
                       className={`flex items-center gap-3 px-4 py-2.5 rounded-lg
-                                  transition-colors duration-200
+                                  transition-colors duration-200 text-sm
                                   ${
                                     isSubActive
-                                      ? 'text-green-600'
-                                      : 'text-gray-600 hover:bg-gray-100'
+                                      ? 'text-white font-medium'
+                                      : 'text-gray-400 hover:text-white'
                                   }`}
                     >
                       <subItem.icon className="h-4 w-4" />
@@ -222,12 +269,12 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
     <li>
       <Link
         href={item.path}
-        className={`flex items-center justify-between px-4 py-2.5 rounded-lg
+        className={`flex items-center justify-between px-4 py-3 rounded-lg
                     transition-colors duration-200
                     ${
                       isActive
-                        ? 'bg-green-100 text-green-700'
-                        : 'text-gray-700 hover:bg-gray-100'
+                        ? 'bg-indigo-700 bg-opacity-75 text-white shadow-inner'
+                        : 'text-gray-300 hover:text-white hover:bg-indigo-800'
                     }`}
       >
         <div className="flex items-center gap-3">
@@ -235,7 +282,7 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
           <span className="font-medium">{item.name}</span>
         </div>
         {item.badge && (
-          <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-600 rounded-full">
+          <span className="px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
             {item.badge}
           </span>
         )}
