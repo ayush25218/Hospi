@@ -28,7 +28,7 @@ import {
   LuReceipt,
   LuCalendarOff,
   LuMegaphone,
-
+  LuBed,
   LuShieldCheck,
   LuFileText,
   LuFilePlus,
@@ -74,6 +74,9 @@ const clinicalMenu: MenuItem[] = [
     submenu: [
       { name: 'Patient List', path: '/patient/list', icon: LuList },
       { name: 'Add Patient', path: '/patient/add', icon: LuPlus },
+      { name: 'IPD Patients', path: '/patient/ipd', icon: LuBed },
+      { name: 'OPD Patients', path: '/patient/opd', icon: LuStethoscope },
+
     ],
   },
   { name: 'Appointments', path: '/appointment', icon: LuCalendarCheck },
@@ -113,14 +116,14 @@ const financeMenu: MenuItem[] = [
 
 const commsMenu: MenuItem[] = [
   { name: 'Email', path: '/email', icon: LuMails, badge: 12 },
-  { name: 'Chat', path: '/chat', icon: LuMessageCircle },
+  // { name: 'Chat', path: '/chat', icon: LuMessageCircle },
   { name: 'Notice Board', path: '/noticeboard', icon: LuMegaphone },
   { name: 'Contacts', path: '/contacts', icon: LuContact },
 ];
 
 const systemMenu: MenuItem[] = [
   { name: 'Analytics', path: '/analytics', icon: LuFileCog },
-  { name: 'Hospital Centres', path: '/centres', icon: LuMapPin },
+  // { name: 'Hospital Centres', path: '/centres', icon: LuMapPin },
   { name: 'File Manager', path: '/files', icon: LuFileCog },
   { name: 'Settings', path: '/settings', icon: LuSettings },
 ];
