@@ -3,3 +3,54 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* ... aapke existing @tailwind rules ke baad ... */
+
+@media print {
+  /* Sidebar, header, aur dusre non-print elements ko chupayein */
+  aside,
+  main > header,
+  .non-printable {
+    display: none !important;
+  }
+
+  /* Main content area ko poori width dein */
+  main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Printable table ko customize karein */
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Print ke liye table styles ko behtar banayein */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+  }
+  th {
+    background-color: #f4f4f4 !important;
+  }
+  /* Images ko print mein bhi dikhayein */
+  img {
+    display: none; /* Optional: Agar image nahi chahiye print mein */
+  }
+  /* Status badges ko print-friendly banayein */
+  span[class*="bg-green-100"] {
+    background-color: #e6f7e9 !important;
+    color: #155724 !important;
+  }
+}

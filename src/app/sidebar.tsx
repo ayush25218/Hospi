@@ -63,8 +63,8 @@ const clinicalMenu: MenuItem[] = [
     path: '/doctors',
     icon: LuStethoscope,
     submenu: [
-      { name: 'Doctor List', path: '/doctors', icon: LuList },
-      { name: 'Add Doctor', path: '/doctors/add', icon: LuPlus },
+      { name: 'Doctor List', path: '/doctor/list', icon: LuList },
+      { name: 'Add Doctor', path: '/doctor/add', icon: LuPlus },
     ],
   },
   {
