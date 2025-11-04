@@ -117,7 +117,7 @@ const financeMenu: MenuItem[] = [
 const commsMenu: MenuItem[] = [
   { name: 'Email', path: '/email', icon: LuMails, badge: 12 },
   // { name: 'Chat', path: '/chat', icon: LuMessageCircle },
-  { name: 'Notice Board', path: '/noticeboard', icon: LuMegaphone },
+  { name: 'Notice Board', path: '/notice', icon: LuMegaphone },
   { name: 'Contacts', path: '/contacts', icon: LuContact },
 ];
 
