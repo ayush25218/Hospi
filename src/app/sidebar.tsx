@@ -105,8 +105,8 @@ const financeMenu: MenuItem[] = [
     path: '/billing',
     icon: LuWallet,
     submenu: [
-      { name: 'Create Invoice', path: '/billing/new', icon: LuFilePlus },
-      { name: 'All Invoices', path: '/billing', icon: LuFileText },
+      { name: 'Create Invoice', path: '/Billing/create', icon: LuFilePlus },
+      { name: 'All Invoices', path: '/billing/allInvoices', icon: LuFileText },
     ],
   },
   { name: 'Payments', path: '/payments', icon: SiPaypal },

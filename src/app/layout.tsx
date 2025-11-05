@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css'; // Make sure to import your global styles
 import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 export const metadata: Metadata = {
   title: 'Hospi - Hospital Management',
   description: 'Welcome to Hospi!',
