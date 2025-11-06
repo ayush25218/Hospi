@@ -106,10 +106,10 @@ const financeMenu: MenuItem[] = [
     icon: LuWallet,
     submenu: [
       { name: 'Create Invoice', path: '/Billing/create', icon: LuFilePlus },
-      { name: 'All Invoices', path: '/billing/allInvoices', icon: LuFileText },
+      { name: 'All Invoices', path: '/Billing/allInvoice', icon: LuFileText },
     ],
   },
-  { name: 'Payments', path: '/payments', icon: SiPaypal },
+  { name: 'Payments', path: '/payment', icon: SiPaypal },
   { name: 'Payroll', path: '/payroll', icon: LuBanknote },
   { name: 'Expenses', path: '/expenses', icon: LuReceipt },
 ];
@@ -293,3 +293,5 @@ function SidebarMenuItem({ item }: { item: MenuItem }) {
     </li>
   );
 }
+
+
