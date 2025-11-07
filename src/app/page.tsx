@@ -48,21 +48,21 @@ export default function Home() {
           <InfoCard
             title="Doctors"
             description="Manage your hospitals doctors efficiently."
-            href="/login"
+            href="/login/doctorlogin"
             icon={LuStethoscope}
           />
 
           <InfoCard
             title="Patients"
             description="Keep track of patient records and history."
-            href="/login"
+            href="/login/patientlogin"
             icon={LuUser}
           />
 
           <InfoCard
             title="Admin"
             description="Manage system settings and staff access."
-            href="/login"
+            href="/login/adminlogin"
             icon={LuShieldCheck}
           />
         </div>
