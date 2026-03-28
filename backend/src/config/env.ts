@@ -15,6 +15,9 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(12).default('change-this-super-secret-key'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(8).max(14).default(10),
+  ADMIN_NAME: z.string().min(2).default('Hospi Admin'),
+  ADMIN_EMAIL: z.email().default('admin@hospi.com'),
+  ADMIN_PASSWORD: z.string().min(8).default('Admin@12345'),
 });
 
 const parsedEnvironment = envSchema.safeParse(process.env);
