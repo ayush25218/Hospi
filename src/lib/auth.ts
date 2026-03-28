@@ -1,0 +1,154 @@
+export type UserRole = 'admin' | 'doctor' | 'patient';
+
+export type SessionUser = {
+  role: UserRole;
+  email: string;
+  name: string;
+};
+
+type RoleMeta = {
+  label: string;
+  shortLabel: string;
+  summary: string;
+  loginPath: string;
+  redirectPath: string;
+  credentials: {
+    email: string;
+    password: string;
+  };
+};
+
+export const SESSION_STORAGE_KEY = 'hospi.session';
+const SESSION_CHANGE_EVENT = 'hospi-auth-change';
+
+export const ROLE_META: Record<UserRole, RoleMeta> = {
+  admin: {
+    label: 'Administrator',
+    shortLabel: 'Admin',
+    summary: 'Monitor operations, finance, staff, and hospital-wide workflows.',
+    loginPath: '/login/adminlogin',
+    redirectPath: '/dashboard',
+    credentials: {
+      email: 'admin@hospi.com',
+      password: 'admin123',
+    },
+  },
+  doctor: {
+    label: 'Doctor',
+    shortLabel: 'Doctor',
+    summary: 'Review appointments, patient updates, and your daily care schedule.',
+    loginPath: '/login/doctorlogin',
+    redirectPath: '/doctor-portal',
+    credentials: {
+      email: 'doctor@hospi.com',
+      password: 'doctor123',
+    },
+  },
+  patient: {
+    label: 'Patient',
+    shortLabel: 'Patient',
+    summary: 'Track appointments, prescriptions, and your care history in one place.',
+    loginPath: '/login/patientlogin',
+    redirectPath: '/patientfolder/dashboard',
+    credentials: {
+      email: 'patient@hospi.com',
+      password: 'patient123',
+    },
+  },
+};
+
+const ROLE_ALIASES: Record<string, UserRole> = {
+  admin: 'admin',
+  adminlogin: 'admin',
+  doctor: 'doctor',
+  doctorlogin: 'doctor',
+  patient: 'patient',
+  patientlogin: 'patient',
+};
+
+export function normalizeRoleSlug(value?: string): UserRole | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.toLowerCase().replace(/[^a-z]/g, '');
+  return ROLE_ALIASES[normalized] ?? null;
+}
+
+export function getRoleMeta(role: UserRole) {
+  return ROLE_META[role];
+}
+
+export function readSession(): SessionUser | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const rawValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as SessionUser;
+    return parsed.role ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSession(session: SessionUser) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
+}
+
+export function clearSession() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
+}
+
+export function buildSessionName(email: string, role: UserRole) {
+  const prefix = email.split('@')[0]?.replace(/[._-]/g, ' ') ?? '';
+  const words = prefix
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+
+  if (words.length === 0) {
+    return getRoleMeta(role).label;
+  }
+
+  return words.join(' ');
+}
+
+export function subscribeToSession(onStoreChange: () => void) {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === SESSION_STORAGE_KEY) {
+      onStoreChange();
+    }
+  };
+
+  const handleSessionChange = () => {
+    onStoreChange();
+  };
+
+  window.addEventListener('storage', handleStorage);
+  window.addEventListener(SESSION_CHANGE_EVENT, handleSessionChange);
+
+  return () => {
+    window.removeEventListener('storage', handleStorage);
+    window.removeEventListener(SESSION_CHANGE_EVENT, handleSessionChange);
+  };
+}

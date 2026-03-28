@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
-import './globals.css'; // Make sure to import your global styles
-import { Analytics } from "@vercel/analytics/next"
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+
 export const metadata: Metadata = {
-  title: 'Hospi - Hospital Management',
-  description: 'Welcome to Hospi!',
+  title: 'Hospi | Hospital Management',
+  description: 'Role-based hospital management dashboard for admins, doctors, and patients.',
 };
 
 export default function RootLayout({
@@ -14,8 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-gray-50">
+      <body>
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
