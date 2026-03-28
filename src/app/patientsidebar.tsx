@@ -6,8 +6,6 @@ import { usePathname } from 'next/navigation';
 import {
   FaTachometerAlt,
   FaCalendarCheck,
-  FaUserMd,
-  FaUserInjured,
   FaPrescriptionBottleAlt,
   FaFlask,
   FaXRay,
