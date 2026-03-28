@@ -20,6 +20,8 @@ type RoleMeta = {
 
 export const SESSION_STORAGE_KEY = 'hospi.session';
 const SESSION_CHANGE_EVENT = 'hospi-auth-change';
+let cachedSessionRaw: string | null | undefined;
+let cachedSession: SessionUser | null = null;
 
 export const ROLE_META: Record<UserRole, RoleMeta> = {
   admin: {
@@ -84,7 +86,20 @@ export function readSession(): SessionUser | null {
     return null;
   }
 
-  const rawValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
+  return readSessionSnapshot(window.localStorage.getItem(SESSION_STORAGE_KEY));
+}
+
+function readSessionSnapshot(rawValue: string | null): SessionUser | null {
+  if (rawValue === cachedSessionRaw) {
+    return cachedSession;
+  }
+
+  cachedSessionRaw = rawValue;
+  cachedSession = parseSession(rawValue);
+  return cachedSession;
+}
+
+function parseSession(rawValue: string | null): SessionUser | null {
   if (!rawValue) {
     return null;
   }
@@ -102,7 +117,10 @@ export function writeSession(session: SessionUser) {
     return;
   }
 
-  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  const rawValue = JSON.stringify(session);
+  cachedSessionRaw = rawValue;
+  cachedSession = session;
+  window.localStorage.setItem(SESSION_STORAGE_KEY, rawValue);
   window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
 }
 
@@ -111,6 +129,8 @@ export function clearSession() {
     return;
   }
 
+  cachedSessionRaw = null;
+  cachedSession = null;
   window.localStorage.removeItem(SESSION_STORAGE_KEY);
   window.dispatchEvent(new Event(SESSION_CHANGE_EVENT));
 }
@@ -136,6 +156,7 @@ export function subscribeToSession(onStoreChange: () => void) {
 
   const handleStorage = (event: StorageEvent) => {
     if (event.key === SESSION_STORAGE_KEY) {
+      readSessionSnapshot(event.newValue);
       onStoreChange();
     }
   };

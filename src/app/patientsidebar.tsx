@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import {
   FaTachometerAlt,
   FaCalendarCheck,
+  FaUserMd,
+  FaUserInjured,
   FaPrescriptionBottleAlt,
   FaFlask,
   FaXRay,
@@ -17,6 +19,7 @@ import {
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Sidebar Data
 const menuItems = [
   { name: 'Dashboard', path: '/patientfolder/dashboard', icon: <FaTachometerAlt /> },
   { name: 'Appointments', path: '/patientfolder/appointments', icon: <FaCalendarCheck /> },
@@ -27,91 +30,64 @@ const menuItems = [
   { name: 'Download Center', path: '/downloads', icon: <FaDownload /> },
 ];
 
+// Sidebar Component
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true);
   const pathname = usePathname();
 
   return (
     <>
-      {/* Mobile Toggle */}
+      {/* Toggle button for mobile */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-5 left-5 z-50 p-2 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-500 lg:hidden transition"
+        className="fixed top-5 left-5 z-50 p-2 bg-indigo-700 text-white rounded-lg shadow-lg hover:bg-indigo-600 lg:hidden"
       >
-        {isOpen ? <FaTimes size={18} /> : <FaBars size={18} />}
+        {isOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
       </button>
 
+      {/* Sidebar */}
       <AnimatePresence>
         {isOpen && (
           <motion.aside
-            key="sidebar"
-            initial={{ x: -280 }}
-            animate={{ x: 0 }}
-            exit={{ x: -280 }}
-            transition={{ duration: 0.3 }}
-            className="fixed top-0 left-0 h-screen w-72 
-            bg-gradient-to-b from-indigo-900 via-indigo-800 to-gray-900
-            text-white shadow-2xl flex flex-col z-40 
-            border-r border-white/10 backdrop-blur-lg"
+            initial={{ x: -300, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -300, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            className="fixed top-0 left-0 h-screen w-72 bg-linear-to-b from-indigo-900 to-gray-900 text-white shadow-xl flex flex-col z-40 lg:sticky lg:translate-x-0"
           >
             {/* Header */}
-            <div className="flex items-center gap-3 p-6 border-b border-white/10">
-              <div className="p-2 bg-indigo-500/20 rounded-xl">
-                <FaHospitalAlt className="text-indigo-300 text-2xl" />
-              </div>
-              <h1 className="text-xl font-semibold tracking-wide">
+            <div className="flex items-center justify-center gap-3 p-6 border-b border-indigo-800">
+              <FaHospitalAlt className="text-indigo-300 text-3xl" />
+              <h1 className="text-2xl font-bold text-white tracking-tight">
                 Hospi7
               </h1>
             </div>
 
             {/* Menu */}
-            <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+            <nav className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-indigo-700 scrollbar-track-gray-900 px-3 py-4 space-y-1">
               {menuItems.map((item) => {
                 const isActive = pathname === item.path;
-
                 return (
-                  <Link href={item.path} key={item.name}>
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer
-                      
-                      ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-lg'
-                          : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {/* Icon */}
-                      <div
-                        className={`p-2 rounded-lg transition
-                        ${
-                          isActive
-                            ? 'bg-white/20'
-                            : 'bg-white/5 hover:bg-white/10'
-                        }`}
-                      >
-                        {item.icon}
-                      </div>
-
-                      {/* Text */}
-                      <span className="text-sm font-medium tracking-wide">
-                        {item.name}
-                      </span>
-
-                      {/* Active Dot */}
-                      {isActive && (
-                        <div className="ml-auto w-2 h-2 bg-white rounded-full" />
-                      )}
-                    </motion.div>
+                  <Link
+                    href={item.path}
+                    key={item.name}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium
+                    ${
+                      isActive
+                        ? 'bg-indigo-700 text-white shadow-inner'
+                        : 'text-gray-300 hover:text-white hover:bg-indigo-800'
+                    }`}
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <span>{item.name}</span>
                   </Link>
                 );
               })}
             </nav>
 
             {/* Footer */}
-            <div className="p-4 border-t border-white/10 text-center text-xs text-gray-400">
-              © 2026 Hospi7
+            <div className="p-4 border-t border-indigo-800 text-center text-xs text-indigo-300">
+              Hospi7
             </div>
           </motion.aside>
         )}
