@@ -1,414 +1,716 @@
-'use client'; // Tabs, dynamic forms, aur state ke liye zaroori hai
+'use client';
 
-import { useState, ChangeEvent, FormEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { startTransition, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import type { ComponentType, ReactNode } from 'react';
 import {
-  LuFilePlus,
-  LuList,
-  LuUser,
-  LuStethoscope,
-  LuUsers,
-  LuDollarSign,
-  LuCalendar,
+  LuArrowRight,
+  LuCalendarDays,
+  LuFilePlus2,
+  LuMail,
+  LuMinus,
+  LuNotebookText,
   LuPlus,
-  LuTrash2,
+  LuReceiptText,
   LuSave,
-  LuFileText,
-  LuInfo,
+  LuUserRound,
+  LuWallet,
 } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  formatCurrency,
+  formatRecordId,
+  type DoctorRecord,
+  type InvoiceLineItem,
+  type InvoicePaystubType,
+  type InvoiceRecord,
+  type InvoiceRecipientType,
+  type InvoiceStatus,
+  type PatientRecord,
+} from '@/lib/api-client';
+import { getTodayInputValue, toIsoDateValue } from '@/lib/date-inputs';
 
-// --- Types ---
-type InvoiceFor = 'patient' | 'staff' | 'doctor';
-type LineItem = {
-  id: number;
-  description: string;
-  quantity: number;
-  price: number;
+type DraftLineItem = InvoiceLineItem & {
+  id: string;
 };
-type Status = 'Draft' | 'Pending' | 'Paid' | 'Cancelled';
 
-// --- Dummy Data (Dropdowns ke liye) ---
-const dummyPatients = [
-  { id: 'PID-001', name: 'Aarav Sharma' },
-  { id: 'PID-002', name: 'Riya Singh' },
-  { id: 'PID-003', name: 'Vikram Mehra' },
-];
-const dummyStaff = [
-  { id: 'SID-001', name: 'Rohan Verma (Nurse)' },
-  { id: 'SID-002', name: 'Aisha Khan (Receptionist)' },
-  { id: 'DOC-001', name: 'Dr. Priya Gupta (Cardiology)' },
-];
+const patientStatuses: InvoiceStatus[] = ['draft', 'pending', 'paid', 'cancelled'];
+const staffStatuses: InvoiceStatus[] = ['draft', 'pending', 'paid', 'cancelled'];
+const paystubOptions: InvoicePaystubType[] = ['salary', 'expense', 'bonus'];
 
-/**
- * ==========================================
- * Main Create Invoice Page Component
- * ==========================================
- */
 export default function CreateInvoicePage() {
-  const [invoiceFor, setInvoiceFor] = useState<InvoiceFor>('patient');
+  const router = useRouter();
+  const session = useSession();
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
+  const [invoiceFor, setInvoiceFor] = useState<InvoiceRecipientType>('patient');
+  const [recipientId, setRecipientId] = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [issueDate, setIssueDate] = useState(getTodayInputValue());
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [status, setStatus] = useState<InvoiceStatus>('pending');
+  const [paystubType, setPaystubType] = useState<InvoicePaystubType>('patient-bill');
+  const [discount, setDiscount] = useState('0');
+  const [taxRate, setTaxRate] = useState('0');
+  const [notes, setNotes] = useState('');
+  const [lineItems, setLineItems] = useState<DraftLineItem[]>([
+    {
+      id: 'line-1',
+      description: 'Consultation fee',
+      quantity: 1,
+      price: 500,
+    },
+  ]);
+  const [isLoadingOptions, setIsLoadingOptions] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoadingOptions(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadOptions = async () => {
+      setIsLoadingOptions(true);
+      setError('');
+
+      try {
+        const [patientsResponse, doctorsResponse] = await Promise.all([
+          apiRequest<PatientRecord[]>('/patients', {}, session),
+          apiRequest<DoctorRecord[]>('/doctors', {}, session),
+        ]);
+
+        if (isActive) {
+          setPatients(patientsResponse);
+          setDoctors(doctorsResponse);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load billing options right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingOptions(false);
+        }
+      }
+    };
+
+    void loadOptions();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const selectedPatient = useMemo(
+    () => patients.find((patient) => patient._id === recipientId) ?? null,
+    [patients, recipientId],
+  );
+  const selectedDoctor = useMemo(
+    () => doctors.find((doctor) => doctor._id === recipientId) ?? null,
+    [doctors, recipientId],
+  );
+
+  useEffect(() => {
+    if (invoiceFor === 'patient') {
+      setPaystubType('patient-bill');
+      setStatus((current) => (current === 'paid' ? current : 'pending'));
+    } else {
+      setPaystubType((current) => (current === 'patient-bill' ? 'salary' : current));
+    }
+
+    setRecipientId('');
+    setRecipientName('');
+    setRecipientEmail('');
+    setPeriodStart('');
+    setPeriodEnd('');
+  }, [invoiceFor]);
+
+  useEffect(() => {
+    if (invoiceFor === 'patient' && selectedPatient) {
+      setRecipientName(selectedPatient.user.name);
+      setRecipientEmail(selectedPatient.user.email);
+    }
+
+    if (invoiceFor === 'doctor' && selectedDoctor) {
+      setRecipientName(selectedDoctor.user.name);
+      setRecipientEmail(selectedDoctor.user.email);
+    }
+  }, [invoiceFor, selectedDoctor, selectedPatient]);
+
+  const totals = useMemo(() => {
+    const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+    const numericDiscount = Number(discount) || 0;
+    const numericTaxRate = Number(taxRate) || 0;
+    const discountedSubtotal = Math.max(subtotal - numericDiscount, 0);
+    const taxAmount = discountedSubtotal * (numericTaxRate / 100);
+
+    return {
+      subtotal,
+      discount: numericDiscount,
+      taxRate: numericTaxRate,
+      taxAmount,
+      totalAmount: discountedSubtotal + taxAmount,
+    };
+  }, [discount, lineItems, taxRate]);
+
+  const missingSelection =
+    invoiceFor === 'patient'
+      ? patients.length === 0
+      : invoiceFor === 'doctor'
+        ? doctors.length === 0
+        : false;
+
+  const handleLineItemChange = (
+    lineId: string,
+    field: keyof InvoiceLineItem,
+    value: string,
+  ) => {
+    setLineItems((current) =>
+      current.map((item) =>
+        item.id === lineId
+          ? {
+              ...item,
+              [field]: field === 'description' ? value : Number(value) || 0,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const addLineItem = () => {
+    setLineItems((current) => [
+      ...current,
+      {
+        id: `line-${Date.now()}`,
+        description: '',
+        quantity: 1,
+        price: 0,
+      },
+    ]);
+  };
+
+  const removeLineItem = (lineId: string) => {
+    setLineItems((current) => (current.length === 1 ? current : current.filter((item) => item.id !== lineId)));
+  };
+
+  const handleRecipientSelection = (value: string) => {
+    setRecipientId(value);
+
+    if (invoiceFor === 'staff') {
+      return;
+    }
+
+    if (!value) {
+      setRecipientName('');
+      setRecipientEmail('');
+    }
+  };
+
+  const saveInvoice = async (nextStatus: InvoiceStatus) => {
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    if (!issueDate) {
+      setError('Choose an invoice date before saving.');
+      return;
+    }
+
+    const normalizedLineItems = lineItems
+      .map((item) => ({
+        description: item.description.trim(),
+        quantity: Number(item.quantity),
+        price: Number(item.price),
+      }))
+      .filter((item) => item.description.length > 0 && item.quantity > 0);
+
+    if (normalizedLineItems.length === 0) {
+      setError('Add at least one valid line item before saving.');
+      return;
+    }
+
+    if ((invoiceFor === 'patient' || invoiceFor === 'doctor') && !recipientId) {
+      setError(`Select a ${invoiceFor} before saving this invoice.`);
+      return;
+    }
+
+    if (!recipientName.trim()) {
+      setError('Recipient name is required.');
+      return;
+    }
+
+    setError('');
+    setIsSaving(true);
+
+    try {
+      await apiRequest<InvoiceRecord>(
+        '/invoices',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            recipientType: invoiceFor,
+            recipientName: recipientName.trim(),
+            recipientEmail: recipientEmail.trim() || undefined,
+            patientId: invoiceFor === 'patient' ? recipientId : undefined,
+            doctorId: invoiceFor === 'doctor' ? recipientId : undefined,
+            paystubType: invoiceFor === 'patient' ? 'patient-bill' : paystubType,
+            issueDate: toIsoDateValue(issueDate),
+            periodStart: periodStart ? toIsoDateValue(periodStart) : undefined,
+            periodEnd: periodEnd ? toIsoDateValue(periodEnd) : undefined,
+            lineItems: normalizedLineItems,
+            taxRate: totals.taxRate,
+            discount: totals.discount,
+            status: nextStatus,
+            notes: notes.trim() || undefined,
+          }),
+        },
+        session,
+      );
+
+      startTransition(() => {
+        router.push('/billing/all-invoices');
+      });
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this invoice right now.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await saveInvoice(status);
+  };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Billing now saves invoices directly in MongoDB. Sign in again through the admin portal so this page can send authenticated API requests."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <LuFilePlus className="h-8 w-8 text-indigo-700" />
-          <h1 className="text-3xl font-bold text-gray-900">Create New Invoice</h1>
-        </div>
-        <Link
-          href="/billing"
-          className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg
-                     hover:bg-gray-700 transition-colors w-full md:w-auto justify-center"
-        >
-          <LuList className="w-5 h-5" />
-          All Invoices
-        </Link>
-      </div>
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+              <LuFilePlus2 className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold text-slate-950">Create Invoice</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Generate patient bills and paystubs using live records from the backend.
+              </p>
+            </div>
+          </div>
 
-      {/* --- Invoice Type Tabs --- */}
-      <div className="bg-white p-4 rounded-xl shadow-md">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
-          1. Select Invoice Type
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-1 bg-gray-100 rounded-lg">
-          <TabButton
-            label="Patient Bill"
-            icon={LuUser}
-            isActive={invoiceFor === 'patient'}
-            onClick={() => setInvoiceFor('patient')}
-          />
-          <TabButton
-            label="Doctor Paystub"
-            icon={LuStethoscope}
-            isActive={invoiceFor === 'doctor'}
-            onClick={() => setInvoiceFor('doctor')}
-          />
-          <TabButton
-            label="Staff Paystub"
-            icon={LuUsers}
-            isActive={invoiceFor === 'staff'}
-            onClick={() => setInvoiceFor('staff')}
-          />
+          <Link
+            href="/billing/all-invoices"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <LuReceiptText className="h-4 w-4" />
+            View all invoices
+          </Link>
         </div>
-      </div>
+      </section>
 
-      {/* --- Dynamic Form --- */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={invoiceFor}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-        >
-          {invoiceFor === 'patient' ? (
-            <PatientInvoiceForm />
-          ) : (
-            <StaffInvoiceForm type={invoiceFor} />
-          )}
-        </motion.div>
-      </AnimatePresence>
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <LuWallet className="h-5 w-5 text-cyan-600" />
+              <h2 className="text-xl font-semibold text-slate-950">Invoice type</h2>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {[
+                { value: 'patient', label: 'Patient Bill', copy: 'Consultations, tests, and treatment charges.' },
+                { value: 'doctor', label: 'Doctor Paystub', copy: 'Salary, incentives, or reimbursements.' },
+                { value: 'staff', label: 'Staff Paystub', copy: 'Back-office or operations payout slips.' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setInvoiceFor(option.value as InvoiceRecipientType)}
+                  className={`rounded-[1.5rem] border p-4 text-left transition ${
+                    invoiceFor === option.value
+                      ? 'border-cyan-300 bg-cyan-50 shadow-sm'
+                      : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'
+                  }`}
+                >
+                  <p className="font-semibold text-slate-900">{option.label}</p>
+                  <p className="mt-2 text-sm text-slate-500">{option.copy}</p>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <LuUserRound className="h-5 w-5 text-cyan-600" />
+              <h2 className="text-xl font-semibold text-slate-950">Recipient details</h2>
+            </div>
+
+            {missingSelection ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                {invoiceFor === 'patient'
+                  ? 'Add at least one patient before creating a patient bill.'
+                  : 'Add at least one doctor before creating a doctor paystub.'}
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid gap-5 md:grid-cols-2">
+              {invoiceFor === 'staff' ? (
+                <>
+                  <Field label="Staff member or recipient" icon={LuUserRound}>
+                    <input
+                      type="text"
+                      value={recipientName}
+                      onChange={(event) => setRecipientName(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                      placeholder="Rohan Verma"
+                      required
+                    />
+                  </Field>
+
+                  <Field label="Email address" icon={LuMail}>
+                    <input
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(event) => setRecipientEmail(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                      placeholder="rohan@hospi.com"
+                    />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label={invoiceFor === 'patient' ? 'Patient' : 'Doctor'} icon={LuUserRound}>
+                    <select
+                      value={recipientId}
+                      onChange={(event) => handleRecipientSelection(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                      disabled={isLoadingOptions || missingSelection}
+                      required
+                    >
+                      <option value="">
+                        {isLoadingOptions
+                          ? `Loading ${invoiceFor}s...`
+                          : `Select ${invoiceFor}`}
+                      </option>
+                      {(invoiceFor === 'patient' ? patients : doctors).map((record) => (
+                        <option key={record._id} value={record._id}>
+                          {record.user.name} ({formatRecordId(invoiceFor === 'patient' ? 'PAT' : 'DOC', record._id)})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Email address" icon={LuMail}>
+                    <input
+                      type="email"
+                      value={recipientEmail}
+                      onChange={(event) => setRecipientEmail(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-cyan-400"
+                      placeholder="Auto-filled from saved record"
+                    />
+                  </Field>
+
+                  <div className="md:col-span-2">
+                    <Field label="Recipient name" icon={LuUserRound}>
+                      <input
+                        type="text"
+                        value={recipientName}
+                        onChange={(event) => setRecipientName(event.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-cyan-400"
+                        placeholder="Auto-filled from saved record"
+                        required
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
+
+              <Field label="Issue date" icon={LuCalendarDays}>
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={(event) => setIssueDate(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  required
+                />
+              </Field>
+
+              <Field label="Status" icon={LuNotebookText}>
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as InvoiceStatus)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  {(invoiceFor === 'patient' ? patientStatuses : staffStatuses).map((option) => (
+                    <option key={option} value={option}>
+                      {toLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {invoiceFor !== 'patient' ? (
+                <>
+                  <Field label="Paystub type" icon={LuReceiptText}>
+                    <select
+                      value={paystubType}
+                      onChange={(event) => setPaystubType(event.target.value as InvoicePaystubType)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    >
+                      {paystubOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {toLabel(option)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Period start" icon={LuCalendarDays}>
+                    <input
+                      type="date"
+                      value={periodStart}
+                      onChange={(event) => setPeriodStart(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+
+                  <Field label="Period end" icon={LuCalendarDays}>
+                    <input
+                      type="date"
+                      value={periodEnd}
+                      onChange={(event) => setPeriodEnd(event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+                </>
+              ) : null}
+
+              <div className="md:col-span-2">
+                <Field label="Internal notes" icon={LuNotebookText}>
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    placeholder="Add invoice notes, payment remarks, or payout context"
+                  />
+                </Field>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <LuReceiptText className="h-5 w-5 text-cyan-600" />
+                <h2 className="text-xl font-semibold text-slate-950">Line items</h2>
+              </div>
+              <button
+                type="button"
+                onClick={addLineItem}
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <LuPlus className="h-4 w-4" />
+                Add line
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {lineItems.map((item, index) => (
+                <div key={item.id} className="rounded-[1.5rem] border border-slate-200 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-700">Item {index + 1}</p>
+                    <button
+                      type="button"
+                      onClick={() => removeLineItem(item.id)}
+                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                    >
+                      <LuMinus className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_120px_160px]">
+                    <Field label="Description">
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(event) => handleLineItemChange(item.id, 'description', event.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                        placeholder="MRI scan, consultation, reimbursement"
+                        required
+                      />
+                    </Field>
+
+                    <Field label="Quantity">
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(event) => handleLineItemChange(item.id, 'quantity', event.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                        required
+                      />
+                    </Field>
+
+                    <Field label="Unit amount">
+                      <input
+                        type="number"
+                        min={0}
+                        value={item.price}
+                        onChange={(event) => handleLineItemChange(item.id, 'price', event.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                        required
+                      />
+                    </Field>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="space-y-6">
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <LuWallet className="h-5 w-5 text-cyan-600" />
+              <h2 className="text-xl font-semibold text-slate-950">Summary</h2>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <StatRow label="Subtotal" value={formatCurrency(totals.subtotal)} />
+              <div className="grid gap-4">
+                <Field label="Discount">
+                  <input
+                    type="number"
+                    min={0}
+                    value={discount}
+                    onChange={(event) => setDiscount(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+                <Field label="Tax rate (%)">
+                  <input
+                    type="number"
+                    min={0}
+                    value={taxRate}
+                    onChange={(event) => setTaxRate(event.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+              </div>
+              <StatRow label="Tax amount" value={formatCurrency(totals.taxAmount)} />
+              <div className="border-t border-dashed border-slate-200 pt-4">
+                <StatRow label="Grand total" value={formatCurrency(totals.totalAmount)} strong />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-semibold text-slate-700">Save invoice</p>
+            <p className="mt-2 text-sm text-slate-500">
+              Draft keeps the invoice editable. Final save uses the selected status and shows it in the billing list.
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => void saveInvoice('draft')}
+                disabled={isSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <LuNotebookText className="h-4 w-4" />
+                Save as draft
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving || (missingSelection && invoiceFor !== 'staff')}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <LuSave className="h-4 w-4" />
+                {isSaving ? 'Saving invoice...' : 'Save invoice'}
+              </button>
+              <Link
+                href="/billing/all-invoices"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-cyan-700 transition hover:text-cyan-900"
+              >
+                Review saved invoices
+                <LuArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </section>
+        </aside>
+      </form>
     </div>
   );
 }
 
-/**
- * ==========================================
- * Helper: Tab Button Component
- * ==========================================
- */
-const TabButton = ({ label, icon: Icon, isActive, onClick }: {
-  label: string;
-  icon: React.ElementType;
-  isActive: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center justify-center gap-2 px-3 py-3 text-sm font-medium rounded-md transition-all
-      ${
-        isActive
-          ? 'bg-white text-indigo-700 shadow-sm'
-          : 'text-gray-600 hover:text-gray-900'
-      }`}
-  >
-    <Icon className="w-5 h-5" />
-    <span className="font-semibold">{label}</span>
-  </button>
-);
-
-/**
- * ==========================================
- * Helper: Patient Invoice Form
- * ==========================================
- */
-const PatientInvoiceForm = () => {
-  const [items, setItems] = useState<LineItem[]>([
-    { id: 1, description: 'Consultation Fee', quantity: 1, price: 500 },
-  ]);
-  const [status, setStatus] = useState<Status>('Pending');
-  const [tax, setTax] = useState(5); // 5%
-  const [discount, setDiscount] = useState(0);
-
-  // Totals Calculation
-  const subtotal = items.reduce((acc, item) => acc + item.quantity * item.price, 0);
-  const taxAmount = (subtotal - discount) * (tax / 100);
-  const grandTotal = subtotal - discount + taxAmount;
-
-  const addItem = () => {
-    setItems([
-      ...items,
-      { id: Date.now(), description: '', quantity: 1, price: 0 },
-    ]);
-  };
-
-  const removeItem = (id: number) => {
-    setItems(items.filter((item) => item.id !== id));
-  };
-
-  const handleItemChange = (
-    id: number,
-    field: keyof LineItem,
-    value: string | number
-  ) => {
-    setItems(
-      items.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      )
-    );
-  };
-  
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    console.log("Patient Invoice Data:", { items, status, subtotal, taxAmount, grandTotal });
-    alert('Patient invoice created! (Check console for data)');
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-md space-y-6">
-      <h3 className="text-xl font-semibold text-gray-800">2. Bill To Patient</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Patient Select */}
-        <InputGroup
-          label="Patient Name" name="patientId" type="select" icon={LuUser}
-          value="" onChange={() => {}}
-        >
-          <option value="">Select a Patient</option>
-          {dummyPatients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </InputGroup>
-        
-        {/* Invoice Date */}
-        <InputGroup
-          label="Invoice Date" name="invoiceDate" type="date" icon={LuCalendar}
-          value={new Date().toISOString().split('T')[0]} onChange={() => {}}
-        />
-
-        {/* Status */}
-        <InputGroup
-          label="Status" name="status" type="select" icon={LuInfo}
-          value={status} onChange={(e) => setStatus(e.target.value as Status)}
-        >
-          <option value="Draft">Draft</option>
-          <option value="Pending">Pending (Awaiting Payment)</option>
-          <option value="Paid">Paid</option>
-          <option value="Cancelled">Cancelled</option>
-        </InputGroup>
-      </div>
-
-      {/* --- Line Items --- */}
-      <h4 className="text-lg font-semibold text-gray-700 pt-4 border-t">Services & Items</h4>
-      <div className="space-y-4">
-        {items.map((item) => (
-          <div key={item.id} className="grid grid-cols-12 gap-2 items-center">
-            <input
-              type="text" placeholder="Item Description"
-              value={item.description}
-              onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-              className="col-span-5 py-2 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <input
-              type="number" placeholder="Qty"
-              value={item.quantity}
-              onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-              className="col-span-2 py-2 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <input
-              type="number" placeholder="Price"
-              value={item.price}
-              onChange={(e) => handleItemChange(item.id, 'price', parseFloat(e.target.value) || 0)}
-              className="col-span-3 py-2 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
-            <span className="col-span-1 text-right font-medium">
-              {(item.quantity * item.price).toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={() => removeItem(item.id)}
-              className="col-span-1 text-red-500 hover:text-red-700"
-            >
-              <LuTrash2 className="w-5 h-5 mx-auto" />
-            </button>
-          </div>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={addItem}
-        className="flex items-center gap-2 px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg
-                   hover:bg-indigo-200 transition-colors text-sm font-medium"
-      >
-        <LuPlus className="w-4 h-4" />
-        Add Line Item
-      </button>
-
-      {/* --- Totals --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t">
-        <div className="md:col-span-2"></div>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 font-medium">Subtotal:</span>
-            <span className="font-bold text-gray-900">${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between items-center gap-2">
-            <label htmlFor="discount" className="text-gray-600 font-medium">Discount ($):</label>
-            <input
-              type="number" id="discount" value={discount}
-              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-              className="w-24 py-1 px-2 text-right border border-gray-300 rounded-lg"
-            />
-          </div>
-           <div className="flex justify-between items-center gap-2">
-            <label htmlFor="tax" className="text-gray-600 font-medium">Tax (%):</label>
-            <input
-              type="number" id="tax" value={tax}
-              onChange={(e) => setTax(parseFloat(e.target.value) || 0)}
-              className="w-24 py-1 px-2 text-right border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div className="border-t"></div>
-          <div className="flex justify-between items-center text-xl">
-            <span className="font-bold text-gray-900">Grand Total:</span>
-            <span className="font-bold text-indigo-600">${grandTotal.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* --- Submit --- */}
-      <div className="flex justify-end gap-4 pt-6 border-t">
-        <button
-          type="button"
-          className="px-6 py-3 font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-        >
-          Save as Draft
-        </button>
-        <button
-          type="submit"
-          className="flex items-center gap-2 px-6 py-3 font-semibold text-white 
-                     bg-indigo-600 rounded-lg hover:bg-indigo-700"
-        >
-          <LuSave className="w-5 h-5" />
-          Generate Invoice
-        </button>
-      </div>
-    </form>
-  );
-};
-
-/**
- * ==========================================
- * Helper: Staff/Doctor Paystub Form
- * ==========================================
- */
-const StaffInvoiceForm = ({ type }: { type: 'staff' | 'doctor' }) => {
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    console.log("Staff/Doctor Paystub Data:", { type });
-    alert(`${type} paystub created! (Check console)`);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-md space-y-6">
-      <h3 className="text-xl font-semibold text-gray-800">
-        2. Create Paystub for {type === 'doctor' ? 'Doctor' : 'Staff'}
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <InputGroup
-          label={type === 'doctor' ? 'Doctor Name' : 'Staff Name'}
-          name="staffId" type="select" icon={LuUser}
-          value="" onChange={() => {}}
-        >
-          <option value="">Select a {type}</option>
-          {dummyStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </InputGroup>
-        
-        <InputGroup
-          label="Paystub Type" name="paystubType" type="select" icon={LuFileText}
-          value="Salary" onChange={() => {}}
-        >
-          <option value="Salary">Monthly Salary</option>
-          <option value="Expense">Expense Reimbursement</option>
-          <option value="Bonus">Bonus / Incentive</option>
-        </InputGroup>
-        
-        <InputGroup
-          label="Pay Period (Start)" name="payPeriodStart" type="date" icon={LuCalendar}
-          value="" onChange={() => {}}
-        />
-        <InputGroup
-          label="Pay Period (End)" name="payPeriodEnd" type="date" icon={LuCalendar}
-          value="" onChange={() => {}}
-        />
-      </div>
-      
-      <div className="flex justify-end gap-4 pt-6 border-t">
-        <button
-          type="submit"
-          className="flex items-center gap-2 px-6 py-3 font-semibold text-white 
-                     bg-indigo-600 rounded-lg hover:bg-indigo-700"
-        >
-          <LuSave className="w-5 h-5" />
-          Generate Paystub
-        </button>
-      </div>
-    </form>
-  );
-};
-
-/**
- * ==========================================
- * Helper: Form Input Component
- * ==========================================
- */
-const InputGroup = ({
-  label, name, value, onChange, icon: Icon, type = 'text', required = false, children,
+function Field({
+  label,
+  icon: Icon,
+  children,
 }: {
-  label: string; name: string; value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  icon: React.ElementType; type?: string; required?: boolean; children?: React.ReactNode;
-}) => (
-  <div>
-    <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <div className="relative mt-2">
-      <span className="absolute left-3 top-3.5 text-gray-400 z-10">
-        <Icon className="w-5 h-5" />
+  label: string;
+  icon?: ComponentType<{ className?: string }>;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
       </span>
-      {type === 'select' ? (
-        <select
-          name={name} id={name} value={value} onChange={onChange} required={required}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {children}
-        </select>
-      ) : (
-        <input
-          type={type} name={name} id={name} value={value} onChange={onChange} required={required}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
-      )}
+      {children}
+    </label>
+  );
+}
+
+function StatRow({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className={`text-sm ${strong ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>{label}</span>
+      <span className={strong ? 'text-lg font-semibold text-slate-950' : 'font-medium text-slate-700'}>{value}</span>
     </div>
-  </div>
-);
+  );
+}
+
+function toLabel(value: string) {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}

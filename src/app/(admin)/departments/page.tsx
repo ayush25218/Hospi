@@ -1,311 +1,447 @@
-'use client'; // Modal aur state ke liye zaroori hai
+'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import {
   LuBuilding2,
-  LuPlus,
-  LuPencil,
-  LuTrash2,
-  LuEye,
-  LuHeart,
-  LuBrain,
-  LuBone,
-  LuBaby,
-  LuCross,
-  LuX,
   LuSave,
-  LuUser,
+  LuSearch,
+  LuStethoscope,
+  LuTrash2,
+  LuUsers,
+  LuX,
 } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  getInitials,
+  type DepartmentRecord,
+  type DoctorRecord,
+} from '@/lib/api-client';
 
-// --- Dummy Data ---
-// (Asli app mein, yeh data API se aayega)
+type DepartmentFormState = {
+  name: string;
+  description: string;
+  headDoctorId: string;
+  staffCount: string;
+};
 
-// HOD chunne ke liye dummy doctors list
-const dummyDoctors = [
-  { id: 1, name: 'Dr. Priya Gupta' },
-  { id: 2, name: 'Dr. Rohan Joshi' },
-  { id: 3, name: 'Dr. Anjali Rao' },
-];
+const initialForm: DepartmentFormState = {
+  name: '',
+  description: '',
+  headDoctorId: '',
+  staffCount: '0',
+};
 
-// Departments ki list
-const dummyDepartments = [
-  {
-    id: 1,
-    name: 'Cardiology',
-    hod: 'Dr. Priya Gupta',
-    staffCount: 25,
-    doctorCount: 15,
-    description: 'Specializes in heart-related diseases and treatments.',
-    icon: LuHeart,
-    color: 'text-red-500',
-  },
-  {
-    id: 2,
-    name: 'Neurology',
-    hod: 'Dr. Rohan Joshi',
-    staffCount: 18,
-    doctorCount: 10,
-    description: 'Focuses on the nervous system, including the brain and spinal cord.',
-    icon: LuBrain,
-    color: 'text-blue-500',
-  },
-  {
-    id: 3,
-    name: 'Pediatrics',
-    hod: 'Dr. Anjali Rao',
-    staffCount: 30,
-    doctorCount: 12,
-    description: 'Dedicated to the health and medical care of infants and children.',
-    icon: LuBaby,
-    color: 'text-pink-500',
-  },
-  {
-    id: 4,
-    name: 'Orthopedics',
-    hod: 'Dr. Vikram Mehra',
-    staffCount: 22,
-    doctorCount: 14,
-    description: 'Focuses on the musculoskeletal system, including bones and joints.',
-    icon: LuBone,
-    color: 'text-gray-600',
-  },
-  {
-    id: 5,
-    name: 'Surgery',
-    hod: 'Dr. Suresh Verma',
-    staffCount: 40,
-    doctorCount: 20,
-    description: 'General and specialized surgical procedures.',
-    icon: LuCross, // (Represents surgery/health)
-    color: 'text-green-500',
-  },
-];
-// --------------------
-
-/**
- * Main Departments Page Component
- */
 export default function DepartmentsPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const session = useSession();
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
+  const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
+  const [formData, setFormData] = useState<DepartmentFormState>(initialForm);
+  const [editingId, setEditingId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadData = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const [departmentsResponse, doctorsResponse] = await Promise.all([
+          apiRequest<DepartmentRecord[]>('/departments', {}, session),
+          apiRequest<DoctorRecord[]>('/doctors', {}, session),
+        ]);
+
+        if (isActive) {
+          setDepartments(departmentsResponse);
+          setDoctors(doctorsResponse);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load departments right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredDepartments = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return departments.filter((department) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return (
+        department.name.toLowerCase().includes(normalizedSearch) ||
+        department.description?.toLowerCase().includes(normalizedSearch) ||
+        department.headDoctor?.user.name.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [departments, searchTerm]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData(initialForm);
+    setEditingId('');
+  };
+
+  const handleEdit = (department: DepartmentRecord) => {
+    setEditingId(department._id);
+    setFormData({
+      name: department.name,
+      description: department.description ?? '',
+      headDoctorId: department.headDoctor?._id ?? '',
+      staffCount: String(department.staffCount),
+    });
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || undefined,
+        headDoctorId: formData.headDoctorId || undefined,
+        staffCount: Number(formData.staffCount) || 0,
+      };
+
+      if (editingId) {
+        const updatedDepartment = await apiRequest<DepartmentRecord>(
+          `/departments/${editingId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+          },
+          session,
+        );
+
+        setDepartments((current) =>
+          current.map((department) => (department._id === editingId ? updatedDepartment : department)),
+        );
+      } else {
+        const createdDepartment = await apiRequest<DepartmentRecord>(
+          '/departments',
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+          session,
+        );
+
+        setDepartments((current) =>
+          [createdDepartment, ...current].sort((left, right) => left.name.localeCompare(right.name)),
+        );
+      }
+
+      resetForm();
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this department right now.'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (departmentId: string) => {
+    if (!session?.token) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this department?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest<null>(
+        `/departments/${departmentId}`,
+        {
+          method: 'DELETE',
+        },
+        session,
+      );
+
+      setDepartments((current) => current.filter((department) => department._id !== departmentId));
+
+      if (editingId === departmentId) {
+        resetForm();
+      }
+    } catch (deleteError) {
+      setError(describeError(deleteError, 'Unable to delete this department right now.'));
+    }
+  };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Departments now load from MongoDB. Sign in again through the admin portal to manage the live department list."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <LuBuilding2 className="h-8 w-8 text-indigo-700" />
-          <h1 className="text-3xl font-bold text-gray-900">
-            Manage Departments
-          </h1>
-        </div>
-        
-        {/* --- Action Button --- */}
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg
-                     hover:bg-indigo-700 transition-colors"
-        >
-          <LuPlus className="w-5 h-5" />
-          Add New Department
-        </button>
-      </div>
-
-      {/* --- Department Cards Grid --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {dummyDepartments.map((dept) => (
-          <DepartmentCard key={dept.id} department={dept} />
-        ))}
-      </div>
-
-      {/* --- Add New Department Modal --- */}
-      <AddDepartmentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        doctors={dummyDoctors}
-      />
-    </div>
-  );
-}
-
-/**
- * Helper Component: Department Card
- */
-function DepartmentCard({ department }: { department: (typeof dummyDepartments)[0] }) {
-  const Icon = department.icon;
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-md flex flex-col justify-between transition-all hover:shadow-lg">
-      <div>
-        {/* Card Header */}
-        <div className="flex items-center justify-between mb-4">
-          <Icon className={`w-10 h-10 ${department.color}`} />
-          <div className="text-right">
-            <h3 className="text-lg font-bold text-gray-500">HOD</h3>
-            <p className="font-medium text-gray-800">{department.hod}</p>
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuBuilding2 className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Departments</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Organize hospital specialties, assign HODs, and track team size in one place.
+            </p>
           </div>
         </div>
-        
-        {/* Card Body */}
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">{department.name}</h2>
-        <p className="text-sm text-gray-600 mb-4 h-16">{department.description}</p>
-        
-        {/* Card Stats */}
-        <div className="flex justify-around items-center py-3 bg-gray-50 rounded-lg mb-4">
-          <div className="text-center">
-            <p className="text-xl font-bold text-indigo-600">{department.doctorCount}</p>
-            <p className="text-xs font-medium text-gray-500">Doctors</p>
-          </div>
-          <div className="border-l h-10 border-gray-200"></div>
-          <div className="text-center">
-            <p className="text-xl font-bold text-indigo-600">{department.staffCount}</p>
-            <p className="text-xs font-medium text-gray-500">Total Staff</p>
-          </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
         </div>
-      </div>
-      
-      {/* Card Footer (Actions) */}
-      <div className="flex items-center justify-end gap-2">
-        <button className="p-2 text-gray-500 hover:text-gray-800" title="View Details">
-          <LuEye className="w-5 h-5" />
-        </button>
-        <button className="p-2 text-indigo-600 hover:text-indigo-800" title="Edit">
-          <LuPencil className="w-5 h-5" />
-        </button>
-        <button className="p-2 text-red-600 hover:text-red-800" title="Delete">
-          <LuTrash2 className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-}
+      ) : null}
 
-/**
- * Helper Component: Add Department Modal
- */
-function AddDepartmentModal({ isOpen, onClose, doctors }: { isOpen: boolean, onClose: () => void, doctors: {id: number, name: string}[] }) {
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    hod: '',
-    description: ''
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("New Department Data:", formData);
-    alert('Department Added! (Check console for data)');
-    onClose(); // Modal band karein
-    setFormData({ name: '', hod: '', description: '' }); // Form reset karein
-  };
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
-        >
-          <motion.div
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 20 }}
-            className="bg-white w-full max-w-lg p-6 rounded-xl shadow-2xl relative"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Add New Department</h2>
-              <button
-                onClick={onClose}
-                className="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100"
-              >
-                <LuX className="w-6 h-6" />
-              </button>
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">
+                {editingId ? 'Edit department' : 'Add department'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Save the department profile, HOD, and staff count.
+              </p>
             </div>
-            
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Department Name */}
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700">Department Name</label>
-                <div className="relative mt-2">
-                  <span className="absolute left-3 top-3.5 text-gray-400"><LuBuilding2 className="w-5 h-5" /></span>
-                  <input
-                    type="text"
-                    name="name"
-                    id="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="e.g., Cardiology"
-                  />
-                </div>
-              </div>
-              
-              {/* Head of Department (HOD) */}
-              <div>
-                <label htmlFor="hod" className="block text-sm font-medium text-gray-700">Head of Department (HOD)</label>
-                <div className="relative mt-2">
-                  <span className="absolute left-3 top-3.5 text-gray-400"><LuUser className="w-5 h-5" /></span>
-                  <select
-                    name="hod"
-                    id="hod"
-                    value={formData.hod}
-                    onChange={handleChange}
-                    required
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">Select a Doctor</option>
-                    {doctors.map(doc => (
-                      <option key={doc.id} value={doc.name}>{doc.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
-              {/* Description */}
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
-                <div className="relative mt-2">
-                  <textarea
-                    name="description"
-                    id="description"
-                    rows={4}
-                    value={formData.description}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="What does this department do?"
-                  ></textarea>
-                </div>
-              </div>
+            {editingId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <LuX className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            ) : null}
+          </div>
 
-              {/* Form Actions */}
-              <div className="flex justify-end gap-4 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700"
-                >
-                  <LuSave className="w-5 h-5" />
-                  Save Department
-                </button>
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <Field label="Department name" icon={LuBuilding2}>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Cardiology"
+                required
+              />
+            </Field>
+
+            <Field label="Head of department" icon={LuStethoscope}>
+              <select
+                name="headDoctorId"
+                value={formData.headDoctorId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              >
+                <option value="">Select a doctor</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor._id} value={doctor._id}>
+                    {doctor.user.name} · {doctor.specialization}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Total staff" icon={LuUsers}>
+              <input
+                type="number"
+                min={0}
+                name="staffCount"
+                value={formData.staffCount}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              />
+            </Field>
+
+            <Field label="Description">
+              <textarea
+                name="description"
+                rows={5}
+                value={formData.description}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="What does this department handle?"
+              />
+            </Field>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving department...' : editingId ? 'Update department' : 'Save department'}
+            </button>
+          </form>
+        </section>
+
+        <section className="space-y-6">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <label className="block">
+              <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                <LuSearch className="h-4 w-4 text-slate-400" />
+                Search departments
+              </span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Department name, description, or HOD"
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {isLoading ? (
+              <div className="rounded-[1.75rem] border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm md:col-span-2">
+                Loading departments...
               </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+            ) : filteredDepartments.length > 0 ? (
+              filteredDepartments.map((department) => (
+                <article
+                  key={department._id}
+                  className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">{department.name}</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {department.headDoctor ? department.headDoctor.user.name : 'No HOD assigned yet'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                      {department.doctorCount} doctors
+                    </span>
+                  </div>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-600">
+                    {department.description || 'No department description added yet.'}
+                  </p>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Doctors</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-950">{department.doctorCount}</p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Staff</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-950">{department.staffCount}</p>
+                    </div>
+                  </div>
+
+                  {department.headDoctor ? (
+                    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-slate-200 p-3">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-700">
+                        {getInitials(department.headDoctor.user.name)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">{department.headDoctor.user.name}</p>
+                        <p className="text-sm text-slate-500">{department.headDoctor.specialization}</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(department)}
+                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(department._id)}
+                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                    >
+                      <LuTrash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm md:col-span-2">
+                No departments found for the current search.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

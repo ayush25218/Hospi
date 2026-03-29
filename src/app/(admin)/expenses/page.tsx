@@ -1,290 +1,429 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from 'react';
 import {
-  FaMoneyBillWave,
-  FaPlus,
-  FaTrashAlt,
-  FaPrint,
-  FaSearch,
-  FaArrowLeft,
-  FaArrowRight,
-  FaCheckCircle,
-  FaClock,
-} from "react-icons/fa";
+  LuCalendarDays,
+  LuIndianRupee,
+  LuReceiptText,
+  LuSave,
+  LuSearch,
+  LuTrash2,
+} from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  formatCurrency,
+  formatDate,
+  type ExpenseRecord,
+  type ExpenseStatus,
+} from '@/lib/api-client';
+import { getTodayInputValue, toIsoDateValue } from '@/lib/date-inputs';
 
-interface Expense {
-  id: number;
+type ExpenseFormState = {
   category: string;
-  amount: number;
+  amount: string;
   description: string;
-  date: string;
-  status: "Approved" | "Pending";
-}
+  expenseDate: string;
+  status: ExpenseStatus;
+};
+
+const initialForm: ExpenseFormState = {
+  category: '',
+  amount: '',
+  description: '',
+  expenseDate: getTodayInputValue(),
+  status: 'pending',
+};
 
 export default function ExpensesPage() {
-  const [showForm, setShowForm] = useState(false);
-  const [expenses, setExpenses] = useState<Expense[]>([
-    {
-      id: 1,
-      category: "Office Supplies",
-      amount: 2500,
-      description: "Printer Ink and Papers",
-      date: "2025-11-01",
-      status: "Approved",
-    },
-    {
-      id: 2,
-      category: "Travel",
-      amount: 4200,
-      description: "Client meeting transport",
-      date: "2025-11-03",
-      status: "Pending",
-    },
-  ]);
+  const session = useSession();
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [formData, setFormData] = useState<ExpenseFormState>(initialForm);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | ExpenseStatus>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const expensesPerPage = 5;
-  const indexOfLast = currentPage * expensesPerPage;
-  const indexOfFirst = indexOfLast - expensesPerPage;
-  const currentExpenses = expenses.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(expenses.length / expensesPerPage);
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
 
-  const handleAddExpense = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const newExpense: Expense = {
-      id: Date.now(),
-      category: data.get("category") as string,
-      amount: parseFloat(data.get("amount") as string),
-      description: data.get("description") as string,
-      date: data.get("date") as string,
-      status: data.get("status") as "Approved" | "Pending",
+    let isActive = true;
+
+    const loadExpenses = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest<ExpenseRecord[]>('/expenses', {}, session);
+
+        if (isActive) {
+          setExpenses(response);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load expenses right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
     };
-    setExpenses([...expenses, newExpense]);
-    setShowForm(false);
-    e.currentTarget.reset();
-    alert("Expense added successfully!");
+
+    void loadExpenses();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredExpenses = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return expenses.filter((expense) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        expense.category.toLowerCase().includes(normalizedSearch) ||
+        expense.description.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus = statusFilter === 'all' || expense.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [expenses, searchTerm, statusFilter]);
+
+  const summary = useMemo(() => {
+    return expenses.reduce(
+      (accumulator, expense) => {
+        accumulator.total += expense.amount;
+
+        if (expense.status === 'approved') {
+          accumulator.approved += expense.amount;
+        } else {
+          accumulator.pending += expense.amount;
+        }
+
+        return accumulator;
+      },
+      { total: 0, approved: 0, pending: 0 },
+    );
+  }, [expenses]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure to delete this expense?")) {
-      setExpenses(expenses.filter((exp) => exp.id !== id));
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const createdExpense = await apiRequest<ExpenseRecord>(
+        '/expenses',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            category: formData.category.trim(),
+            amount: Number(formData.amount) || 0,
+            description: formData.description.trim(),
+            expenseDate: toIsoDateValue(formData.expenseDate),
+            status: formData.status,
+          }),
+        },
+        session,
+      );
+
+      setExpenses((current) => [createdExpense, ...current]);
+      setFormData(initialForm);
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this expense right now.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handlePrintAll = () => {
-    window.print();
+  const handleDelete = async (expenseId: string) => {
+    if (!session?.token) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this expense?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest<null>(
+        `/expenses/${expenseId}`,
+        {
+          method: 'DELETE',
+        },
+        session,
+      );
+
+      setExpenses((current) => current.filter((expense) => expense._id !== expenseId));
+    } catch (deleteError) {
+      setError(describeError(deleteError, 'Unable to delete this expense right now.'));
+    }
   };
 
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Expenses now load from MongoDB. Sign in again through the admin portal to manage the live expense ledger."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-100 to-slate-200 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-xl"
-      >
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <FaMoneyBillWave className="text-indigo-600 text-3xl" />
-            <h1 className="text-2xl font-bold text-gray-800">
-              Expense Management
-            </h1>
+    <div className="space-y-8">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuReceiptText className="h-6 w-6" />
           </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrintAll}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <FaPrint /> Print All
-            </button>
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-            >
-              <FaPlus /> Add Expense
-            </button>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Expenses</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Track operating spend with a live expense register and quick totals.
+            </p>
           </div>
         </div>
+      </section>
 
-        {/* Search Bar */}
-        <div className="relative mb-4">
-          <FaSearch className="absolute left-3 top-3 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by category or description..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-          />
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
         </div>
+      ) : null}
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm md:text-base border-collapse">
-            <thead>
-              <tr className="bg-indigo-600 text-white">
-                <th className="py-3 px-4 text-left rounded-tl-lg">Category</th>
-                <th className="py-3 px-4 text-left">Amount</th>
-                <th className="py-3 px-4 text-left">Description</th>
-                <th className="py-3 px-4 text-left">Date</th>
-                <th className="py-3 px-4 text-left">Status</th>
-                <th className="py-3 px-4 text-center rounded-tr-lg">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentExpenses.map((expense) => (
-                <tr
-                  key={expense.id}
-                  className="border-b hover:bg-gray-50 transition"
-                >
-                  <td className="py-3 px-4 font-medium text-gray-800">
-                    {expense.category}
-                  </td>
-                  <td className="py-3 px-4 font-semibold text-gray-800">
-                    ₹{expense.amount.toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4">{expense.description}</td>
-                  <td className="py-3 px-4">{expense.date}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold w-fit ${
-                        expense.status === "Approved"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                    >
-                      {expense.status === "Approved" ? (
-                        <FaCheckCircle />
-                      ) : (
-                        <FaClock />
-                      )}
-                      {expense.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => handleDelete(expense.id)}
-                      className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
-                      title="Delete Expense"
-                    >
-                      <FaTrashAlt />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-950">Add expense</h2>
+          <p className="mt-1 text-sm text-slate-500">Record a new operating or reimbursement expense.</p>
 
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-6">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${
-              currentPage === 1
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-            }`}
-          >
-            <FaArrowLeft /> Prev
-          </button>
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <Field label="Category" icon={LuReceiptText}>
+              <input
+                type="text"
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Lab supplies, transport, maintenance"
+                required
+              />
+            </Field>
 
-          <span className="text-gray-700 font-medium">
-            Page {currentPage} of {totalPages}
-          </span>
+            <Field label="Amount" icon={LuIndianRupee}>
+              <input
+                type="number"
+                min={0}
+                name="amount"
+                value={formData.amount}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="2500"
+                required
+              />
+            </Field>
 
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${
-              currentPage === totalPages
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-            }`}
-          >
-            Next <FaArrowRight />
-          </button>
-        </div>
-      </motion.div>
+            <Field label="Expense date" icon={LuCalendarDays}>
+              <input
+                type="date"
+                name="expenseDate"
+                value={formData.expenseDate}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                required
+              />
+            </Field>
 
-      {/* Add Expense Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex justify-center items-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md"
+            <Field label="Status">
+              <select
+                name="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+              </select>
+            </Field>
+
+            <Field label="Description">
+              <textarea
+                name="description"
+                rows={5}
+                value={formData.description}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="What was purchased or reimbursed?"
+                required
+              />
+            </Field>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Add New Expense
-              </h2>
-              <form onSubmit={handleAddExpense} className="space-y-4">
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving expense...' : 'Save expense'}
+            </button>
+          </form>
+        </section>
+
+        <section className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryCard label="Total spend" value={formatCurrency(summary.total)} />
+            <SummaryCard label="Approved" value={formatCurrency(summary.approved)} />
+            <SummaryCard label="Pending" value={formatCurrency(summary.pending)} />
+          </div>
+
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <LuSearch className="h-4 w-4 text-slate-400" />
+                  Search expenses
+                </span>
                 <input
-                  name="category"
-                  placeholder="Expense Category"
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  placeholder="Category or description"
                 />
-                <input
-                  name="amount"
-                  type="number"
-                  placeholder="Amount (₹)"
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
-                <textarea
-                  name="description"
-                  placeholder="Description"
-                  rows={3}
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
-                <input
-                  name="date"
-                  type="date"
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Status filter</span>
                 <select
-                  name="status"
-                  required
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as 'all' | ExpenseStatus)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
                 >
-                  <option value="Approved">Approved</option>
-                  <option value="Pending">Pending</option>
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
                 </select>
+              </label>
+            </div>
+          </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(false)}
-                    className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                  >
-                    Save Expense
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Category</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Date</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Amount</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Description</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                        Loading expenses...
+                      </td>
+                    </tr>
+                  ) : filteredExpenses.length > 0 ? (
+                    filteredExpenses.map((expense) => (
+                      <tr key={expense._id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{expense.category}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{formatDate(expense.expenseDate)}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{formatCurrency(expense.amount)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusClasses(expense.status)}`}>
+                            {expense.status === 'approved' ? 'Approved' : 'Pending'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{expense.description}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(expense._id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                          >
+                            <LuTrash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                        No expenses found for the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
     </div>
   );
+}
+
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function getStatusClasses(status: ExpenseStatus) {
+  return status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
 }

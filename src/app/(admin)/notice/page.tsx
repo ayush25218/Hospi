@@ -1,498 +1,533 @@
-'use client'; // Modals, filters, aur state ke liye zaroori hai
+'use client';
 
-import { useState, FormEvent, ChangeEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  LuMegaphone,
-  LuPlus,
-  LuSearch,
+  LuBellRing,
   LuPin,
   LuPinOff,
-  LuPencil,
+  LuSave,
+  LuSearch,
   LuTrash2,
   LuX,
-  LuSave,
-  LuOctagonAlert, // Changed from LuAlertOctagon
-  LuUsers, // HR
-  LuStethoscope, // Clinical
-  LuCalendar, // Events
-  LuInfo, // General
-  LuUserCheck,
 } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  formatDate,
+  type NoticeAudience,
+  type NoticeCategory,
+  type NoticeRecord,
+} from '@/lib/api-client';
 
-// --- Types ---
-type NoticeCategory = 'Urgent' | 'HR' | 'Clinical' | 'Events' | 'General';
-type NoticeAudience = 'All Staff' | 'Doctors Only' | 'Nurses Only' | 'Admin';
-
-interface Notice {
-  id: number;
+type NoticeFormState = {
   title: string;
   content: string;
   category: NoticeCategory;
   author: string;
-  date: string;
-  isPinned: boolean;
   audience: NoticeAudience;
-}
-
-// --- Dummy Data ---
-const dummyNotices: Notice[] = [
-  {
-    id: 1,
-    title: 'CODE RED: Fire Drill - Wing C',
-    content: 'This is a scheduled fire drill for Wing C on Nov 5th at 3 PM. All staff must participate.',
-    category: 'Urgent',
-    author: 'Admin',
-    date: '2025-11-04',
-    isPinned: true,
-    audience: 'All Staff',
-  },
-  {
-    id: 2,
-    title: 'Updated Staff Roster (Nov 5 - Nov 12)',
-    content: 'The updated weekly staff roster for all departments is now available on the portal.',
-    category: 'HR',
-    author: 'HR Department',
-    date: '2025-11-03',
-    isPinned: false,
-    audience: 'All Staff',
-  },
-  {
-    id: 3,
-    title: 'New Billing Software Training',
-    content: 'Mandatory training for the new billing software will be held in Conference Room A at 11 AM tomorrow.',
-    category: 'General',
-    author: 'IT Department',
-    date: '2025-11-02',
-    isPinned: false,
-    audience: 'Admin',
-  },
-  {
-    id: 4,
-    title: 'Blood Donation Camp',
-    content: 'A blood donation camp is being organized in the main lobby on Nov 7th. All are welcome.',
-    category: 'Events',
-    author: 'Management',
-    date: '2025-11-01',
-    isPinned: false,
-    audience: 'All Staff',
-  },
-  {
-    id: 5,
-    title: 'New Infection Control Protocol (Protocol 4B)',
-    content: 'Effective immediately, all clinical staff must adhere to the new Infection Control Protocol 4B.',
-    category: 'Clinical',
-    author: 'Dr. Priya Gupta',
-    date: '2025-11-04',
-    isPinned: false,
-    audience: 'Doctors Only',
-  },
-];
-
-const categories: { name: NoticeCategory; icon: React.ElementType; color: string }[] = [
-  { name: 'Urgent', icon: LuOctagonAlert, color: 'red' },
-  { name: 'HR', icon: LuUsers, color: 'blue' },
-  { name: 'Clinical', icon: LuStethoscope, color: 'green' },
-  { name: 'Events', icon: LuCalendar, color: 'purple' },
-  { name: 'General', icon: LuInfo, color: 'gray' },
-];
-
-/**
- * ==========================================
- * Main Notice Board Page Component
- * ==========================================
- */
-export default function NoticeboardPage() {
-  const [notices, setNotices] = useState(dummyNotices);
-  const [activeTab, setActiveTab] = useState<NoticeCategory | 'All'>('All');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
-
-  // Filter logic
-  const filteredNotices = notices.filter((notice) => {
-    const matchesTab = activeTab === 'All' || notice.category === activeTab;
-    const matchesSearch =
-      notice.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notice.content.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesTab && matchesSearch;
-  });
-
-  const pinnedNotices = filteredNotices.filter((n) => n.isPinned);
-  const regularNotices = filteredNotices.filter((n) => !n.isPinned);
-
-  // Action Handlers
-  const openModal = (notice: Notice | null = null) => {
-    setEditingNotice(notice);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingNotice(null);
-  };
-
-  const handleSave = (notice: Notice) => {
-    if (editingNotice) {
-      setNotices(notices.map((n) => (n.id === notice.id ? notice : n)));
-    } else {
-      setNotices([notice, ...notices]);
-    }
-    closeModal();
-  };
-  
-  const handleDelete = (id: number) => {
-    if (window.confirm('Are you sure you want to delete this notice?')) {
-      setNotices(notices.filter(n => n.id !== id));
-    }
-  };
-  
-  const togglePin = (id: number) => {
-    setNotices(notices.map(n => n.id === id ? { ...n, isPinned: !n.isPinned } : n));
-  };
-
-  return (
-    <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <LuMegaphone className="h-8 w-8 text-indigo-700" />
-          <h1 className="text-3xl font-bold text-gray-900">Notice Board</h1>
-        </div>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg
-                     hover:bg-indigo-700 transition-colors"
-        >
-          <LuPlus className="w-5 h-5" />
-          Add New Notice
-        </button>
-      </div>
-
-      {/* --- Filters & Search --- */}
-      <div className="bg-white p-4 rounded-xl shadow-md space-y-4">
-        {/* Search Bar */}
-        <div className="relative">
-          <span className="absolute left-3 top-3.5 text-gray-400"><LuSearch className="w-5 h-5" /></span>
-          <input
-            type="text"
-            placeholder="Search notices by title or content..."
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        {/* Category Filter Tabs */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <FilterTab
-            label="All"
-            isActive={activeTab === 'All'}
-            onClick={() => setActiveTab('All')}
-          />
-          {categories.map(cat => (
-             <FilterTab
-              key={cat.name}
-              label={cat.name}
-              isActive={activeTab === cat.name}
-              onClick={() => setActiveTab(cat.name)}
-              color={cat.color}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* --- Pinned Notices --- */}
-      {pinnedNotices.length > 0 && (
-        <section>
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <LuPin className="text-indigo-600" />
-            Pinned Notices
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {pinnedNotices.map((notice) => (
-              <NoticeCard 
-                key={notice.id} 
-                notice={notice} 
-                onEdit={() => openModal(notice)}
-                onDelete={() => handleDelete(notice.id)}
-                onPin={() => togglePin(notice.id)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* --- All Notices --- */}
-      <section>
-        <h2 className="text-xl font-bold text-gray-800 mb-4">
-          All Notices
-        </h2>
-        {regularNotices.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {regularNotices.map((notice) => (
-              <NoticeCard 
-                key={notice.id} 
-                notice={notice} 
-                onEdit={() => openModal(notice)}
-                onDelete={() => handleDelete(notice.id)}
-                onPin={() => togglePin(notice.id)}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500 text-center py-8">No notices found.</p>
-        )}
-      </section>
-
-      {/* --- Add/Edit Modal --- */}
-      <AddNoticeModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        onSave={handleSave}
-        notice={editingNotice}
-      />
-    </div>
-  );
-}
-
-/**
- * ==========================================
- * Helper Components
- * ==========================================
- */
-
-// --- Filter Tab Button ---
-const FilterTab = ({ label, isActive, onClick, color = 'gray' }: {
-  label: string; isActive: boolean; onClick: () => void; color?: string;
-}) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2 text-sm font-medium rounded-full transition-colors border
-      ${
-        isActive
-          ? `bg-${color}-600 text-white border-${color}-600`
-          : `bg-white text-gray-700 border-gray-300 hover:bg-gray-50`
-      }`}
-  >
-    {label}
-  </button>
-);
-
-// --- Notice Card ---
-const NoticeCard = ({ notice, onEdit, onDelete, onPin }: {
-  notice: Notice;
-  onEdit: () => void;
-  onDelete: () => void;
-  onPin: () => void;
-}) => {
-  const category = categories.find(c => c.name === notice.category) || categories[4];
-  const CategoryIcon = category.icon;
-
-  return (
-    <div className={`bg-white rounded-xl shadow-md border-l-4 border-${category.color}-500`}>
-      <div className="p-5">
-        {/* Card Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className={`flex items-center gap-2 text-sm font-bold text-${category.color}-600`}>
-            <CategoryIcon className="w-5 h-5" />
-            <span>{notice.category}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button onClick={onEdit} className="p-2 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-gray-100" title="Edit">
-              <LuPencil className="w-4 h-4" />
-            </button>
-            <button onClick={onPin} className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100" title={notice.isPinned ? "Unpin" : "Pin to Top"}>
-              {notice.isPinned ? <LuPinOff className="w-4 h-4" /> : <LuPin className="w-4 h-4" />}
-            </button>
-            <button onClick={onDelete} className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100" title="Delete">
-              <LuTrash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Title & Content */}
-        <h3 className="text-xl font-bold text-gray-900 mb-2">{notice.title}</h3>
-        <p className="text-gray-700 text-sm mb-4">{notice.content}</p>
-
-        {/* Footer */}
-        <div className="border-t pt-3 text-xs text-gray-500 flex justify-between">
-          <span>By: <span className="font-medium">{notice.author}</span> ({notice.date})</span>
-          <span className="font-medium flex items-center gap-1">
-            {notice.audience === 'All Staff' ? <LuUsers className="w-4 h-4" /> : <LuUserCheck className="w-4 h-4" />}
-            {notice.audience}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+  isPinned: boolean;
 };
 
-// --- Add/Edit Notice Modal ---
-const AddNoticeModal = ({ isOpen, onClose, onSave, notice }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (notice: Notice) => void;
-  notice: Notice | null;
-}) => {
-  const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    category: 'General' as NoticeCategory,
-    audience: 'All Staff' as NoticeAudience,
-    isPinned: false,
-  });
+const initialForm: NoticeFormState = {
+  title: '',
+  content: '',
+  category: 'general',
+  author: 'Admin',
+  audience: 'all-staff',
+  isPinned: false,
+};
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    const isCheckbox = type === 'checkbox';
-    
-    setFormData((prev) => ({
-      ...prev,
-      [name]: isCheckbox ? (e.target as HTMLInputElement).checked : value,
+const categoryStyles: Record<NoticeCategory, string> = {
+  urgent: 'bg-rose-100 text-rose-700',
+  hr: 'bg-sky-100 text-sky-700',
+  clinical: 'bg-emerald-100 text-emerald-700',
+  events: 'bg-amber-100 text-amber-700',
+  general: 'bg-slate-100 text-slate-700',
+};
+
+export default function NoticePage() {
+  const session = useSession();
+  const [notices, setNotices] = useState<NoticeRecord[]>([]);
+  const [formData, setFormData] = useState<NoticeFormState>(initialForm);
+  const [editingId, setEditingId] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | NoticeCategory>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadNotices = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest<NoticeRecord[]>('/notices', {}, session);
+
+        if (isActive) {
+          setNotices(sortNotices(response));
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load notices right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadNotices();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredNotices = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return notices.filter((notice) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        notice.title.toLowerCase().includes(normalizedSearch) ||
+        notice.content.toLowerCase().includes(normalizedSearch) ||
+        notice.author.toLowerCase().includes(normalizedSearch);
+
+      const matchesCategory = categoryFilter === 'all' || notice.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [categoryFilter, notices, searchTerm]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value, type } = event.target;
+    const nextValue =
+      type === 'checkbox' ? (event.target as HTMLInputElement).checked : value;
+
+    setFormData((current) => ({
+      ...current,
+      [name]: nextValue,
     }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const finalNotice: Notice = {
-      ...formData,
-      id: notice ? notice.id : Date.now(),
-      author: 'Admin',
-      date: new Date().toISOString().split('T')[0],
-    };
-    onSave(finalNotice);
-    
-    // Reset form after save
+  const resetForm = () => {
+    setFormData(initialForm);
+    setEditingId('');
+  };
+
+  const handleEdit = (notice: NoticeRecord) => {
+    setEditingId(notice._id);
     setFormData({
-      title: '', 
-      content: '', 
-      category: 'General', 
-      audience: 'All Staff', 
-      isPinned: false,
+      title: notice.title,
+      content: notice.content,
+      category: notice.category,
+      author: notice.author,
+      audience: notice.audience,
+      isPinned: notice.isPinned,
     });
   };
 
-  // Reset form when modal opens
-  const handleModalOpen = () => {
-    if (notice) {
-      setFormData({
-        title: notice.title,
-        content: notice.content,
-        category: notice.category,
-        audience: notice.audience,
-        isPinned: notice.isPinned,
-      });
-    } else {
-      setFormData({
-        title: '', 
-        content: '', 
-        category: 'General', 
-        audience: 'All Staff', 
-        isPinned: false,
-      });
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const payload = {
+        title: formData.title.trim(),
+        content: formData.content.trim(),
+        category: formData.category,
+        author: formData.author.trim() || 'Admin',
+        audience: formData.audience,
+        isPinned: formData.isPinned,
+      };
+
+      if (editingId) {
+        const updatedNotice = await apiRequest<NoticeRecord>(
+          `/notices/${editingId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+          },
+          session,
+        );
+
+        setNotices((current) =>
+          sortNotices(current.map((notice) => (notice._id === editingId ? updatedNotice : notice))),
+        );
+      } else {
+        const createdNotice = await apiRequest<NoticeRecord>(
+          '/notices',
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+          session,
+        );
+
+        setNotices((current) => sortNotices([createdNotice, ...current]));
+      }
+
+      resetForm();
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this notice right now.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const togglePinned = async (notice: NoticeRecord) => {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      const updatedNotice = await apiRequest<NoticeRecord>(
+        `/notices/${notice._id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            isPinned: !notice.isPinned,
+          }),
+        },
+        session,
+      );
+
+      setNotices((current) =>
+        sortNotices(
+          current.map((currentNotice) =>
+            currentNotice._id === notice._id ? updatedNotice : currentNotice,
+          ),
+        ),
+      );
+    } catch (toggleError) {
+      setError(describeError(toggleError, 'Unable to update this notice right now.'));
+    }
+  };
+
+  const handleDelete = async (noticeId: string) => {
+    if (!session?.token) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this notice?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest<null>(
+        `/notices/${noticeId}`,
+        {
+          method: 'DELETE',
+        },
+        session,
+      );
+
+      setNotices((current) => current.filter((notice) => notice._id !== noticeId));
+
+      if (editingId === noticeId) {
+        resetForm();
+      }
+    } catch (deleteError) {
+      setError(describeError(deleteError, 'Unable to delete this notice right now.'));
+    }
+  };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Notices now load from MongoDB. Sign in again through the admin portal to manage the live notice board."
+      />
+    );
+  }
+
   return (
-    <AnimatePresence mode="wait">
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          exit={{ opacity: 0 }}
-          onAnimationStart={handleModalOpen}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50"
-        >
-          <motion.div
-            initial={{ scale: 0.9, y: 20 }} 
-            animate={{ scale: 1, y: 0 }} 
-            exit={{ scale: 0.9, y: 20 }}
-            className="bg-white w-full max-w-2xl p-6 rounded-xl shadow-2xl relative"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {notice ? 'Edit Notice' : 'Add New Notice'}
+    <div className="space-y-8">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuBellRing className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Notice Board</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Share admin updates, urgent announcements, and team-wide notices from one place.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">
+                {editingId ? 'Edit notice' : 'Post notice'}
               </h2>
-              <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-100">
-                <LuX className="w-6 h-6" />
-              </button>
+              <p className="mt-1 text-sm text-slate-500">
+                Draft a notice for staff, doctors, or specific admin groups.
+              </p>
             </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-              <div>
-                <label htmlFor="title" className="block text-sm font-medium text-gray-700">Title</label>
-                <input
-                  type="text" name="title" id="title" value={formData.title} onChange={handleChange}
-                  required
-                  className="w-full mt-2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Notice Title"
-                />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700">Category</label>
-                  <select
-                    name="category" id="category" value={formData.category} onChange={handleChange}
-                    className="w-full mt-2 px-4 py-3 border border-gray-300 rounded-lg appearance-none 
-                               focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {categories.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="audience" className="block text-sm font-medium text-gray-700">Audience (For)</label>
-                  <select
-                    name="audience" id="audience" value={formData.audience} onChange={handleChange}
-                    className="w-full mt-2 px-4 py-3 border border-gray-300 rounded-lg appearance-none 
-                               focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="All Staff">All Staff</option>
-                    <option value="Doctors Only">Doctors Only</option>
-                    <option value="Nurses Only">Nurses Only</option>
-                    <option value="Admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label htmlFor="content" className="block text-sm font-medium text-gray-700">Message</label>
-                <textarea
-                  name="content" id="content" value={formData.content} onChange={handleChange}
-                  rows={6} required
-                  className="w-full mt-2 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Write the notice details here..."
-                ></textarea>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="isPinned"
-                  id="isPinned"
-                  checked={formData.isPinned}
+            {editingId ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <LuX className="h-3.5 w-3.5" />
+                Cancel
+              </button>
+            ) : null}
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <Field label="Title">
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="New billing software rollout"
+                required
+              />
+            </Field>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <Field label="Category">
+                <select
+                  name="category"
+                  value={formData.category}
                   onChange={handleChange}
-                  className="h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                />
-                <label htmlFor="isPinned" className="text-sm font-medium text-gray-700">
-                  Pin this notice to the top
-                </label>
-              </div>
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="general">General</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="hr">HR</option>
+                  <option value="clinical">Clinical</option>
+                  <option value="events">Events</option>
+                </select>
+              </Field>
 
-              <div className="flex justify-end gap-4 pt-6 border-t">
-                <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200">
-                  Cancel
-                </button>
-                <button type="submit" className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700">
-                  <LuSave className="w-5 h-5" />
-                  {notice ? 'Save Changes' : 'Post Notice'}
-                </button>
+              <Field label="Audience">
+                <select
+                  name="audience"
+                  value={formData.audience}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="all-staff">All staff</option>
+                  <option value="doctors-only">Doctors only</option>
+                  <option value="nurses-only">Nurses only</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Author">
+              <input
+                type="text"
+                name="author"
+                value={formData.author}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Admin"
+              />
+            </Field>
+
+            <Field label="Message">
+              <textarea
+                name="content"
+                rows={6}
+                value={formData.content}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Write the announcement details here"
+                required
+              />
+            </Field>
+
+            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+              <input
+                type="checkbox"
+                name="isPinned"
+                checked={formData.isPinned}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-slate-300 text-cyan-600"
+              />
+              <span className="text-sm font-medium text-slate-700">Pin this notice to the top</span>
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving notice...' : editingId ? 'Update notice' : 'Post notice'}
+            </button>
+          </form>
+        </section>
+
+        <section className="space-y-6">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <LuSearch className="h-4 w-4 text-slate-400" />
+                  Search notices
+                </span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  placeholder="Title, content, or author"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Category filter</span>
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value as 'all' | NoticeCategory)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="all">All categories</option>
+                  <option value="general">General</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="hr">HR</option>
+                  <option value="clinical">Clinical</option>
+                  <option value="events">Events</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {isLoading ? (
+              <div className="rounded-[1.75rem] border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm md:col-span-2">
+                Loading notices...
               </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+            ) : filteredNotices.length > 0 ? (
+              filteredNotices.map((notice) => (
+                <article
+                  key={notice._id}
+                  className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryStyles[notice.category]}`}>
+                          {toLabel(notice.category)}
+                        </span>
+                        {notice.isPinned ? (
+                          <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                            Pinned
+                          </span>
+                        ) : null}
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-950">{notice.title}</h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void togglePinned(notice)}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {notice.isPinned ? <LuPinOff className="h-3.5 w-3.5" /> : <LuPin className="h-3.5 w-3.5" />}
+                      {notice.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                  </div>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-600">{notice.content}</p>
+
+                  <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    <p>Audience: {toLabel(notice.audience)}</p>
+                    <p className="mt-1">By {notice.author} · {formatDate(notice.createdAt)}</p>
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(notice)}
+                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(notice._id)}
+                      className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                    >
+                      <LuTrash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500 shadow-sm md:col-span-2">
+                No notices found for the current filters.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
   );
-};
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function toLabel(value: string) {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function sortNotices(notices: NoticeRecord[]) {
+  return [...notices].sort((left, right) => {
+    if (left.isPinned !== right.isPinned) {
+      return Number(right.isPinned) - Number(left.isPinned);
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+}
