@@ -1,18 +1,13 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LuChevronDown, LuLogOut, LuMenu, LuPanelLeftClose, LuShieldPlus } from 'react-icons/lu';
 import type { NavigationItem, NavigationSection } from '@/config/navigation';
-import {
-  clearSession,
-  getRoleMeta,
-  readSession,
-  subscribeToSession,
-  type UserRole,
-} from '@/lib/auth';
+import { clearSession, getRoleMeta, type UserRole } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
 
 type RoleSidebarProps = {
   role: UserRole;
@@ -30,7 +25,7 @@ export function RoleSidebar({
   onClose,
 }: RoleSidebarProps) {
   const router = useRouter();
-  const session = useSyncExternalStore(subscribeToSession, readSession, () => null);
+  const session = useSession();
   const roleMeta = getRoleMeta(role);
 
   const handleLogout = () => {

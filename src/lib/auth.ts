@@ -1,9 +1,12 @@
 export type UserRole = 'admin' | 'doctor' | 'patient';
 
 export type SessionUser = {
+  id?: string;
   role: UserRole;
   email: string;
   name: string;
+  token?: string;
+  source?: 'backend' | 'demo';
 };
 
 type RoleMeta = {
@@ -32,7 +35,7 @@ export const ROLE_META: Record<UserRole, RoleMeta> = {
     redirectPath: '/dashboard',
     credentials: {
       email: 'admin@hospi.com',
-      password: 'admin123',
+      password: 'Admin@12345',
     },
   },
   doctor: {
@@ -105,8 +108,25 @@ function parseSession(rawValue: string | null): SessionUser | null {
   }
 
   try {
-    const parsed = JSON.parse(rawValue) as SessionUser;
-    return parsed.role ? parsed : null;
+    const parsed = JSON.parse(rawValue) as Partial<SessionUser> | null;
+
+    if (
+      !parsed ||
+      typeof parsed.role !== 'string' ||
+      typeof parsed.email !== 'string' ||
+      typeof parsed.name !== 'string'
+    ) {
+      return null;
+    }
+
+    return {
+      id: typeof parsed.id === 'string' ? parsed.id : undefined,
+      role: parsed.role as UserRole,
+      email: parsed.email,
+      name: parsed.name,
+      token: typeof parsed.token === 'string' ? parsed.token : undefined,
+      source: parsed.source === 'backend' || parsed.source === 'demo' ? parsed.source : undefined,
+    };
   } catch {
     return null;
   }

@@ -1,201 +1,231 @@
 'use client';
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { useMemo } from 'react';
 import {
-  FaPrescriptionBottleAlt,
-  FaFlask,
-  FaXRay,
-  FaTint,
-  FaAmbulance,
-} from 'react-icons/fa';
-import {
-  ResponsiveContainer,
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
-  BarChart, Bar, PieChart, Pie, Cell,
-} from 'recharts';
+  LuCalendarClock,
+  LuHeartPulse,
+  LuPill,
+  LuShieldPlus,
+  LuUserRound,
+} from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { getRelevantAppointments } from '@/lib/appointment-utils';
+import { calculateAge, formatDateTime, formatRecordId } from '@/lib/api-client';
+import { usePatientWorkspace } from '@/hooks/use-patient-workspace';
 
-/* -------------------------
-   Premium-looking Patient Dashboard (Sidebar Removed)
-   ------------------------- */
+export default function PatientDashboardPage() {
+  const { session, appointments, patientProfile, isLoading, error } = usePatientWorkspace();
 
-const stats = [
-  { key: 'Pharmacy', count: 14, change: '+3%', color: '#10b981', icon: <FaPrescriptionBottleAlt className="w-5 h-5" /> },
-  { key: 'Pathology', count: 13, change: '+5%', color: '#ef4444', icon: <FaFlask className="w-5 h-5" /> },
-  { key: 'Radiology', count: 14, change: '+2%', color: '#2563eb', icon: <FaXRay className="w-5 h-5" /> },
-  { key: 'Blood Bank', count: 25, change: '+8%', color: '#f59e0b', icon: <FaTint className="w-5 h-5" /> },
-  { key: 'Ambulance', count: 9, change: '+1%', color: '#f97316', icon: <FaAmbulance className="w-5 h-5" /> },
-];
+  const nextAppointment = useMemo(() => {
+    return (
+      getRelevantAppointments(appointments).find(
+        (appointment) => new Date(appointment.scheduledAt) >= new Date()
+      ) ?? null
+    );
+  }, [appointments]);
 
-const lineData = [
-  { year: '2023', OPD: 2, IPD: 1, Pharmacy: 1, Pathology: 0, Radiology: 0, BloodBank: 0, Ambulance: 0 },
-  { year: '2024', OPD: 6, IPD: 3, Pharmacy: 5, Pathology: 7, Radiology: 2, BloodBank: 4, Ambulance: 3 },
-  { year: '2025', OPD: 13, IPD: 3, Pharmacy: 14, Pathology: 25, Radiology: 14, BloodBank: 25, Ambulance: 9 },
-];
+  const completedCount = useMemo(
+    () => appointments.filter((appointment) => appointment.status === 'completed').length,
+    [appointments]
+  );
 
-const barData = [
-  { name: 'Finding A', value: 40 },
-  { name: 'Finding B', value: 30 },
-  { name: 'Finding C', value: 28 },
-  { name: 'Finding D', value: 24 },
-  { name: 'Finding E', value: 18 },
-];
+  const metrics = useMemo(
+    () => [
+      {
+        label: 'Upcoming Appointments',
+        value: String(
+          appointments.filter((appointment) => ['scheduled', 'confirmed'].includes(appointment.status)).length
+        ),
+        icon: LuCalendarClock,
+      },
+      {
+        label: 'Completed Visits',
+        value: String(completedCount),
+        icon: LuHeartPulse,
+      },
+      {
+        label: 'Medical History Tags',
+        value: String(patientProfile?.medicalHistory.length ?? 0),
+        icon: LuPill,
+      },
+      {
+        label: 'Emergency Contact',
+        value: patientProfile?.emergencyContact ? 'Saved' : 'Missing',
+        icon: LuShieldPlus,
+      },
+    ],
+    [appointments, completedCount, patientProfile]
+  );
 
-const pieData = [
-  { name: 'Thirst', value: 30 },
-  { name: 'Feeling sad', value: 20 },
-  { name: 'Eczema', value: 18 },
-  { name: 'Cramps', value: 12 },
-  { name: 'Asthma', value: 20 },
-];
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed patient session required"
+        description="Patient dashboard now uses your real backend profile and appointments. Sign in with a patient account created by admin to access it."
+        actionHref="/login/patientlogin"
+      />
+    );
+  }
 
-const PIE_COLORS = ['#059669', '#0ea5e9', '#fb923c', '#8b5cf6', '#f97316'];
-
-export default function PatientDashboardPremium(): React.ReactElement {
   return (
-    <div className="min-h-screen bg-linear-to-b from-gray-50 to-gray-100 text-sm p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Patient Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Overview of departments, activity & trending metrics</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="text-sm px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:scale-[1.02] transition">Export</button>
-          <button className="text-sm px-3 py-2 bg-indigo-600 text-white rounded-lg shadow-md hover:bg-indigo-700 transition">New Appointment</button>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 px-6 py-8 text-white shadow-[0_24px_70px_rgba(15,23,42,0.14)] sm:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-4">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-cyan-200">
+              <LuUserRound className="h-4 w-4" />
+              Patient dashboard
+            </span>
+            <div>
+              <h1 className="text-3xl font-semibold sm:text-4xl">
+                {patientProfile?.user.name ?? session.name}, your care summary is ready.
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
+                {patientProfile
+                  ? `${calculateAge(patientProfile.dateOfBirth)} years · ${patientProfile.gender}`
+                  : 'This space keeps your appointments, care status, and pharmacy handoff in one place.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/patientfolder/appointments"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+              >
+                View appointments
+              </Link>
+              <Link
+                href="/patientfolder/pharmacy"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/6"
+              >
+                Open pharmacy hub
+              </Link>
+            </div>
+          </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 mb-6">
-        {stats.map((s) => (
-          <motion.div
-            key={s.key}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-lg transition"
-          >
-            <div style={{ background: `${s.color}20` }} className="w-12 h-12 rounded-lg grid place-items-center">
-              <div style={{ color: s.color }} className="text-lg">{s.icon}</div>
+          <div className="grid gap-4 rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
+            <p className="text-sm font-semibold text-white/75">Next important update</p>
+            <div className="rounded-2xl bg-cyan-400/10 p-4">
+              <p className="text-xs uppercase tracking-[0.22em] text-cyan-200">Next appointment</p>
+              <p className="mt-3 text-2xl font-semibold">
+                {nextAppointment ? nextAppointment.doctor.user.name : 'No upcoming appointment'}
+              </p>
+              <p className="mt-2 text-sm text-white/70">
+                {nextAppointment
+                  ? `${formatDateTime(nextAppointment.scheduledAt)} · ${nextAppointment.reason}`
+                  : 'When the hospital books your next visit, it will appear here.'}
+              </p>
             </div>
-            <div className="flex-1">
-              <div className="text-xs text-gray-500">{s.key}</div>
-              <div className="text-xl font-bold text-gray-900">{s.count}</div>
+            <div className="rounded-2xl bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.22em] text-white/50">Profile status</p>
+              <p className="mt-3 text-lg font-semibold">
+                {patientProfile?.emergencyContact ? 'Emergency contact saved' : 'Emergency contact missing'}
+              </p>
+              <p className="mt-2 text-sm text-white/65">
+                Share missing contact details with the hospital to keep your record complete.
+              </p>
             </div>
-            <div className="text-xs text-green-500 font-medium">{s.change}</div>
-          </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+              <metric.icon className="h-5 w-5" />
+            </div>
+            <p className="mt-5 text-3xl font-semibold text-slate-950">{isLoading ? '...' : metric.value}</p>
+            <p className="mt-2 text-sm font-medium text-slate-700">{metric.label}</p>
+          </div>
         ))}
-      </div>
+      </section>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Line Chart */}
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-gray-800">Medical History</h3>
-            <div className="text-xs text-gray-500">Yearly trend</div>
+      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Recent appointment activity</h2>
+              <p className="mt-1 text-sm text-slate-500">The latest visits tied to your patient account.</p>
+            </div>
+            <Link
+              href="/patientfolder/appointments"
+              className="text-sm font-semibold text-cyan-700 transition hover:text-cyan-600"
+            >
+              View full history
+            </Link>
           </div>
-          <div style={{ height: 320 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={lineData} margin={{ top: 10, right: 24, left: -8, bottom: 6 }}>
-                <CartesianGrid strokeDasharray="5 5" stroke="#f3f4f6" />
-                <XAxis dataKey="year" tick={{ fill: '#6b7280' }} />
-                <YAxis tick={{ fill: '#6b7280' }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ paddingTop: 8 }} />
-                <Line type="monotone" dataKey="OPD" stroke="#06b6d4" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="IPD" stroke="#7c3aed" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Pharmacy" stroke="#10b981" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Pathology" stroke="#ef4444" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Radiology" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="BloodBank" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Ambulance" stroke="#f97316" strokeWidth={3} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
+
+          <div className="mt-6 space-y-4">
+            {isLoading ? (
+              <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-500">
+                Loading activity...
+              </div>
+            ) : appointments.length > 0 ? (
+              getRelevantAppointments(appointments).slice(0, 4).map((appointment) => (
+                <div
+                  key={appointment._id}
+                  className="flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-base font-semibold text-slate-950">{appointment.doctor.user.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">{appointment.reason}</p>
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      {formatRecordId('APT', appointment._id)}
+                    </p>
+                  </div>
+                  <div className="text-sm text-slate-500">{formatDateTime(appointment.scheduledAt)}</div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-500">
+                Your appointment history is empty right now.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bar + Pie Charts */}
         <div className="space-y-6">
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-lg font-semibold text-gray-800">Top Findings</h4>
-              <div className="text-xs text-gray-500">Most frequent</div>
-            </div>
-            <div style={{ height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 8, right: 0, left: -10, bottom: 6 }}>
-                  <CartesianGrid stroke="#f3f4f6" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fill: '#6b7280' }} />
-                  <YAxis tick={{ fill: '#6b7280' }} />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-950">Patient quick actions</h2>
+            <div className="mt-5 grid gap-3">
+              {[
+                ['Open appointment history', '/patientfolder/appointments'],
+                ['Visit pharmacy hub', '/patientfolder/pharmacy'],
+              ].map(([label, href]) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+                >
+                  {label}
+                </Link>
+              ))}
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-lg font-semibold text-gray-800">Top Symptoms</h4>
-              <div className="text-xs text-gray-500">Distribution</div>
-            </div>
-            <div style={{ height: 180 }} className="flex items-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={65}
-                    innerRadius={28}
-                    paddingAngle={4}
-                    labelLine={false}
-                    label={({ name }) => name}
-                  >
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-slate-950">Profile checklist</h2>
+            <ul className="mt-5 space-y-3 text-sm text-slate-600">
+              <li className="rounded-2xl bg-slate-50 px-4 py-3">
+                Blood group: {patientProfile?.bloodGroup || 'Not shared yet'}
+              </li>
+              <li className="rounded-2xl bg-slate-50 px-4 py-3">
+                Emergency contact: {patientProfile?.emergencyContact || 'Missing'}
+              </li>
+              <li className="rounded-2xl bg-slate-50 px-4 py-3">
+                Medical history tags: {patientProfile?.medicalHistory.join(', ') || 'No history tags added'}
+              </li>
+            </ul>
           </div>
         </div>
-      </div>
-
-      {/* Bottom Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-          <div className="text-xs text-gray-500">Recent Activity</div>
-          <ul className="mt-3 space-y-2 text-sm text-gray-700">
-            <li>• OPD Registration — Aarav Sharma</li>
-            <li>• Lab Report Uploaded — Riya Singh</li>
-            <li>• Discharged — Patient #EMP-102</li>
-          </ul>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-          <div className="text-xs text-gray-500">Quick Actions</div>
-          <div className="mt-3 flex flex-col gap-2">
-            <button className="text-left px-3 py-2 rounded-md bg-indigo-50 text-indigo-700">Create Appointment</button>
-            <button className="text-left px-3 py-2 rounded-md bg-green-50 text-green-700">Upload Report</button>
-            <button className="text-left px-3 py-2 rounded-md bg-yellow-50 text-yellow-700">Generate Invoice</button>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-          <div className="text-xs text-gray-500">Summary</div>
-          <div className="mt-3 space-y-2 text-sm text-gray-700">
-            <div>Total Patients: <span className="font-semibold">320</span></div>
-            <div>Open Bills: <span className="font-semibold">12</span></div>
-            <div>Upcoming Appointments: <span className="font-semibold">8</span></div>
-          </div>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

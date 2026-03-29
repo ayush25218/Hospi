@@ -1,56 +1,25 @@
-'use client'; // State aur buttons ke liye zaroori hai
+'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  LuUserPlus,
+  LuCalendarDays,
   LuPrinter,
   LuSearch,
-  LuCalendarDays,
-  LuPencil,
-  LuTrash2,
+  LuUserPlus,
   LuUsers,
 } from 'react-icons/lu';
-
-// Dummy Patient Data (Aap isse database se fetch karenge)
-const allPatients = [
-  {
-    id: 1,
-    patientId: 'PAT-001',
-    name: 'Aarav Sharma',
-    age: 34,
-    phone: '+91 98765 43210',
-    registrationDate: new Date(), // Aaj
-    imageUrl: 'https://via.placeholder.com/150/007BFF/FFFFFF?text=AS',
-  },
-  {
-    id: 2,
-    patientId: 'PAT-002',
-    name: 'Riya Singh',
-    age: 28,
-    phone: '+91 98765 43211',
-    registrationDate: new Date(new Date().setDate(new Date().getDate() - 1)), // Kal
-    imageUrl: 'https://via.placeholder.com/150/28A745/FFFFFF?text=RS',
-  },
-  {
-    id: 3,
-    patientId: 'PAT-003',
-    name: 'Vikram Mehra',
-    age: 45,
-    phone: '+91 98765 43212',
-    registrationDate: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Pichhle mahine
-    imageUrl: 'https://via.placeholder.com/150/FFC107/FFFFFF?text=VM',
-  },
-  {
-    id: 4,
-    patientId: 'PAT-004',
-    name: 'Priya Joshi',
-    age: 52,
-    phone: '+91 98765 43213',
-    registrationDate: new Date(new Date().setFullYear(new Date().getFullYear() - 1)), // Pichhle saal
-    imageUrl: 'https://via.placeholder.com/150/DC3545/FFFFFF?text=PJ',
-  },
-];
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import {
+  apiRequest,
+  calculateAge,
+  describeError,
+  formatDate,
+  formatRecordId,
+  getInitials,
+  type PatientRecord,
+} from '@/lib/api-client';
+import { useSession } from '@/hooks/use-session';
 
 type TimeRange = 'all' | 'daily' | 'monthly' | 'quarterly' | 'yearly';
 
@@ -63,181 +32,226 @@ const filterButtons: { label: string; range: TimeRange }[] = [
 ];
 
 export default function PatientsListPage() {
+  const session = useSession();
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Filter logic
-  const filteredPatients = allPatients.filter((patient) => {
-    const today = new Date();
-    const regDate = new Date(patient.registrationDate);
-
-    // 1. Search Filter
-    const matchesSearch =
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm);
-
-    // 2. Time Range Filter
-    let matchesTime = false;
-    switch (timeRange) {
-      case 'daily':
-        matchesTime = regDate.toDateString() === today.toDateString();
-        break;
-      case 'monthly':
-        matchesTime =
-          regDate.getMonth() === today.getMonth() &&
-          regDate.getFullYear() === today.getFullYear();
-        break;
-      case 'quarterly':
-        const currentQuarter = Math.floor(today.getMonth() / 3);
-        const patientQuarter = Math.floor(regDate.getMonth() / 3);
-        matchesTime =
-          patientQuarter === currentQuarter &&
-          regDate.getFullYear() === today.getFullYear();
-        break;
-      case 'yearly':
-        matchesTime = regDate.getFullYear() === today.getFullYear();
-        break;
-      case 'all':
-      default:
-        matchesTime = true;
-        break;
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
     }
 
-    return matchesSearch && matchesTime;
-  });
+    let isActive = true;
 
-  // Print function
+    const loadPatients = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest<PatientRecord[]>('/patients', {}, session);
+
+        if (isActive) {
+          setPatients(response);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load patients right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadPatients();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredPatients = useMemo(() => {
+    return patients.filter((patient) => {
+      const today = new Date();
+      const registrationDate = new Date(patient.createdAt);
+      const recordId = formatRecordId('PAT', patient._id).toLowerCase();
+      const normalizedSearch = searchTerm.toLowerCase();
+
+      const matchesSearch =
+        patient.user.name.toLowerCase().includes(normalizedSearch) ||
+        recordId.includes(normalizedSearch) ||
+        (patient.user.phone ?? '').includes(searchTerm);
+
+      let matchesTime = false;
+
+      switch (timeRange) {
+        case 'daily':
+          matchesTime = registrationDate.toDateString() === today.toDateString();
+          break;
+        case 'monthly':
+          matchesTime =
+            registrationDate.getMonth() === today.getMonth() &&
+            registrationDate.getFullYear() === today.getFullYear();
+          break;
+        case 'quarterly':
+          matchesTime =
+            Math.floor(registrationDate.getMonth() / 3) === Math.floor(today.getMonth() / 3) &&
+            registrationDate.getFullYear() === today.getFullYear();
+          break;
+        case 'yearly':
+          matchesTime = registrationDate.getFullYear() === today.getFullYear();
+          break;
+        case 'all':
+        default:
+          matchesTime = true;
+      }
+
+      return matchesSearch && matchesTime;
+    });
+  }, [patients, searchTerm, timeRange]);
+
   const handlePrint = () => {
     window.print();
   };
 
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Patient records now load from MongoDB. Sign in again through the admin portal to view the synced list."
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 non-printable">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between non-printable">
         <div className="flex items-center gap-3">
           <LuUsers className="h-8 w-8 text-indigo-700" />
-          <h1 className="text-3xl font-bold text-gray-900">Manage Patients</h1>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Manage Patients</h1>
+            <p className="mt-1 text-sm text-gray-500">Patient registrations synced from MongoDB.</p>
+          </div>
         </div>
 
-        {/* --- Action Buttons --- */}
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg
-                       hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-white transition hover:bg-gray-700"
           >
-            <LuPrinter className="w-5 h-5" />
+            <LuPrinter className="h-5 w-5" />
             Print List
           </button>
           <Link
             href="/patient/add"
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg
-                       hover:bg-indigo-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white transition hover:bg-indigo-700"
           >
-            <LuUserPlus className="w-5 h-5" />
+            <LuUserPlus className="h-5 w-5" />
             Add New Patient
           </Link>
         </div>
       </div>
 
-      {/* --- Search and Filters --- */}
-      <div className="bg-white p-4 rounded-xl shadow-md space-y-4 non-printable">
-        {/* Search Bar */}
+      <div className="space-y-4 rounded-xl bg-white p-4 shadow-md non-printable">
         <div className="relative">
           <span className="absolute left-3 top-3.5 text-gray-400">
-            <LuSearch className="w-5 h-5" />
+            <LuSearch className="h-5 w-5" />
           </span>
           <input
             type="text"
-            placeholder="Search by name, patient ID, or phone..."
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                       focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Search by patient name, patient ID, or phone..."
+            className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
           />
         </div>
-        
-        {/* Time Filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-gray-600 flex items-center">
-            <LuCalendarDays className="w-4 h-4 mr-2" />
-            Filter by Date:
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center text-sm font-medium text-gray-600">
+            <LuCalendarDays className="mr-2 h-4 w-4" />
+            Filter by registration date:
           </span>
-          {filterButtons.map((btn) => (
+          {filterButtons.map((button) => (
             <button
-              key={btn.range}
-              onClick={() => setTimeRange(btn.range)}
-              className={`px-3 py-1 text-sm font-medium rounded-full transition-colors
-                ${
-                  timeRange === btn.range
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+              key={button.range}
+              onClick={() => setTimeRange(button.range)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                timeRange === button.range
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              {btn.label}
+              {button.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* --- Patient List Table --- */}
-      <div id="printable-patient-list" className="printable-area bg-white rounded-xl shadow-md overflow-hidden">
+      {error ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-xl bg-white shadow-md">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-full text-left">
+          <table className="min-w-full text-left">
             <thead className="border-b border-gray-200 bg-gray-50">
               <tr>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Patient Name</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Patient ID</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Age</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Phone</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Registration Date</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600 non-printable">Actions</th>
+                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Patient Name</th>
+                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Patient ID</th>
+                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Age</th>
+                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Phone</th>
+                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Registration Date</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.map((patient) => (
-                <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={patient.imageUrl}
-                        alt={patient.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="font-medium text-gray-900">{patient.name}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{patient.patientId}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{patient.age}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">{patient.phone}</td>
-                  <td className="py-3 px-4 text-sm text-gray-700">
-                    {patient.registrationDate.toLocaleDateString()}
-                  </td>
-                  <td className="py-3 px-4 non-printable">
-                    <div className="flex items-center gap-2">
-                      <button className="p-2 text-indigo-600 hover:text-indigo-800">
-                        <LuPencil className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 text-red-600 hover:text-red-800">
-                        <LuTrash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                    Loading patients...
                   </td>
                 </tr>
-              ))}
+              ) : filteredPatients.length > 0 ? (
+                filteredPatients.map((patient) => (
+                  <tr key={patient._id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-10 w-10 place-items-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
+                          {getInitials(patient.user.name)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{patient.user.name}</p>
+                          <p className="text-sm text-gray-500">{patient.user.email}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatRecordId('PAT', patient._id)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{calculateAge(patient.dateOfBirth)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{patient.user.phone || 'Not added yet'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatDate(patient.createdAt)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                    No patients found yet. Add one to see it here.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-          {filteredPatients.length === 0 && (
-            <div className="p-6 text-center text-gray-500">
-              No patients found matching your criteria.
-            </div>
-          )}
         </div>
       </div>
+
+      <p className="text-sm text-gray-600 non-printable">
+        Showing <span className="font-medium">{filteredPatients.length}</span> patient records.
+      </p>
     </div>
   );
 }

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { startTransition, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LuArrowLeft, LuCircleCheck, LuLock, LuMail, LuShieldEllipsis } from 'react-icons/lu';
 import { buildSessionName, getRoleMeta, writeSession, type UserRole } from '@/lib/auth';
+import { apiRequest, describeError, type AuthResponse } from '@/lib/api-client';
 
 const roleStyles: Record<UserRole, { glow: string; badge: string; button: string }> = {
   admin: {
@@ -32,26 +33,64 @@ export function LoginForm({ role }: { role: UserRole }) {
   const [email, setEmail] = useState(roleMeta.credentials.email);
   const [password, setPassword] = useState(roleMeta.credentials.password);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
+    setIsSubmitting(true);
 
-    if (
-      email.trim().toLowerCase() !== roleMeta.credentials.email ||
-      password !== roleMeta.credentials.password
-    ) {
-      setError('Use the demo credentials shown on the screen to enter this workspace.');
+    try {
+      const result = await apiRequest<AuthResponse>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      });
+
+      if (result.user.role !== role) {
+        setError(
+          `This account belongs to the ${getRoleMeta(result.user.role).shortLabel} portal. Please use the correct login.`
+        );
+        return;
+      }
+
+      writeSession({
+        id: result.user._id,
+        role: result.user.role,
+        email: result.user.email,
+        name: result.user.name,
+        token: result.token,
+        source: 'backend',
+      });
+
+      startTransition(() => {
+        router.replace(getRoleMeta(result.user.role).redirectPath);
+      });
       return;
+    } catch (submissionError) {
+      const isDemoMatch =
+        email.trim().toLowerCase() === roleMeta.credentials.email && password === roleMeta.credentials.password;
+
+      if (role !== 'admin' && isDemoMatch) {
+        writeSession({
+          role,
+          email: roleMeta.credentials.email,
+          name: buildSessionName(email, role),
+          source: 'demo',
+        });
+
+        startTransition(() => {
+          router.replace(roleMeta.redirectPath);
+        });
+        return;
+      }
+
+      setError(describeError(submissionError, 'Unable to sign you in right now.'));
+    } finally {
+      setIsSubmitting(false);
     }
-
-    writeSession({
-      role,
-      email: roleMeta.credentials.email,
-      name: buildSessionName(email, role),
-    });
-
-    router.replace(roleMeta.redirectPath);
   };
 
   return (
@@ -111,7 +150,7 @@ export function LoginForm({ role }: { role: UserRole }) {
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Hospi sign in</p>
               <h2 className="mt-2 text-3xl font-semibold text-slate-950">{roleMeta.shortLabel} Login</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Demo mode is enabled for this portfolio project. You can use the credentials below directly.
+                Admin login uses the Express backend. Doctor and patient portals can still fall back to demo access.
               </p>
             </div>
 
@@ -164,9 +203,10 @@ export function LoginForm({ role }: { role: UserRole }) {
 
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className={`w-full rounded-2xl px-4 py-3.5 text-sm font-semibold text-white transition ${styles.button}`}
               >
-                Enter {roleMeta.shortLabel} Workspace
+                {isSubmitting ? 'Signing in...' : `Enter ${roleMeta.shortLabel} Workspace`}
               </button>
             </form>
           </div>

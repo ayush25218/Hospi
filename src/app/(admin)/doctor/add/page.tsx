@@ -1,292 +1,264 @@
-'use client'; // Form hai, isliye 'use client' zaroori hai
+'use client';
 
-import { useState } from 'react';
+import { startTransition, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { ComponentType, ReactNode } from 'react';
 import {
-  LuUser,
+  LuBriefcaseMedical,
+  LuBuilding2,
+  LuClock3,
+  LuIndianRupee,
+  LuKeyRound,
   LuMail,
   LuPhone,
-  LuBuilding2,
-  LuStethoscope,
   LuSave,
-  LuCalendar,
-  LuUpload,
+  LuStethoscope,
+  LuUser,
   LuUserPlus,
 } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { apiRequest, describeError, type DoctorRecord } from '@/lib/api-client';
+import { useSession } from '@/hooks/use-session';
 
-// Main Add Doctor Page
+const departments = ['Cardiology', 'Neurology', 'Orthopedics', 'Pediatrics', 'Surgery', 'Radiology'];
+
 export default function AddDoctorPage() {
-  // Form ke data ko store karne ke liye state
+  const router = useRouter();
+  const session = useSession();
   const [formData, setFormData] = useState({
-    fullName: '',
+    name: '',
     email: '',
     phone: '',
+    password: 'Doctor@12345',
     department: '',
     specialization: '',
-    dob: '',
+    yearsOfExperience: '',
+    consultationFee: '',
     bio: '',
+    availability: '',
   });
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Input change ko handle karne ke liye function
   const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
       [name]: value,
     }));
   };
 
-  // Form submit ko handle karne ke liye
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Abhi ke liye, hum data ko console mein log karenge
-    console.log('New Doctor Data:', formData);
-    alert('New doctor added successfully! (Check console for data)');
-    // Asli app mein, aap yahaan API call karke data database mein save karte
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    setError('');
+    setIsSaving(true);
+
+    try {
+      await apiRequest<DoctorRecord>(
+        '/doctors',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: formData.name.trim(),
+            email: formData.email.trim().toLowerCase(),
+            phone: formData.phone.trim() || undefined,
+            password: formData.password,
+            department: formData.department,
+            specialization: formData.specialization.trim(),
+            yearsOfExperience: formData.yearsOfExperience ? Number(formData.yearsOfExperience) : 0,
+            consultationFee: formData.consultationFee ? Number(formData.consultationFee) : 0,
+            bio: formData.bio.trim() || undefined,
+            availability: formData.availability
+              .split(',')
+              .map((slot) => slot.trim())
+              .filter(Boolean),
+          }),
+        },
+        session
+      );
+
+      startTransition(() => {
+        router.push('/doctor/list');
+      });
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this doctor right now.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Doctor records now save directly in MongoDB. Sign in again through the admin portal so this page can send authenticated API requests."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LuUserPlus className="h-8 w-8 text-indigo-700" />
+      <div className="flex items-center gap-3">
+        <LuUserPlus className="h-8 w-8 text-indigo-700" />
+        <div>
           <h1 className="text-3xl font-bold text-gray-900">Add New Doctor</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Create a doctor account, profile, and availability block in one step.
+          </p>
         </div>
       </div>
 
-      {/* --- Form --- */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-xl shadow-md space-y-6"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Full Name */}
-          <div className="col-span-1">
-            <label
-              htmlFor="fullName"
-              className="block text-sm font-medium text-gray-700"
+      <form onSubmit={handleSubmit} className="space-y-6 rounded-xl bg-white p-8 shadow-md">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Field label="Full Name" icon={LuUser}>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Dr. John Doe"
+            />
+          </Field>
+
+          <Field label="Email Address" icon={LuMail}>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="john.doe@example.com"
+            />
+          </Field>
+
+          <Field label="Phone Number" icon={LuPhone}>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="+91 98765 43210"
+            />
+          </Field>
+
+          <Field label="Login Password" icon={LuKeyRound}>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              minLength={8}
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </Field>
+
+          <Field label="Department" icon={LuBuilding2}>
+            <select
+              name="department"
+              value={formData.department}
+              onChange={handleChange}
+              required
+              className="w-full appearance-none rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              Full Name
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuUser className="w-5 h-5" />
-              </span>
+              <option value="">Select Department</option>
+              {departments.map((department) => (
+                <option key={department} value={department}>
+                  {department}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Specialization" icon={LuStethoscope}>
+            <input
+              type="text"
+              name="specialization"
+              value={formData.specialization}
+              onChange={handleChange}
+              required
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Interventional Cardiologist"
+            />
+          </Field>
+
+          <Field label="Years of Experience" icon={LuClock3}>
+            <input
+              type="number"
+              name="yearsOfExperience"
+              min={0}
+              value={formData.yearsOfExperience}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="8"
+            />
+          </Field>
+
+          <Field label="Consultation Fee" icon={LuIndianRupee}>
+            <input
+              type="number"
+              name="consultationFee"
+              min={0}
+              value={formData.consultationFee}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="1200"
+            />
+          </Field>
+
+          <div className="md:col-span-2">
+            <Field label="Availability Slots" icon={LuBriefcaseMedical}>
               <input
                 type="text"
-                name="fullName"
-                id="fullName"
-                value={formData.fullName}
+                name="availability"
+                value={formData.availability}
                 onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Dr. John Doe"
+                className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Mon 10am-2pm, Wed 4pm-8pm"
               />
-            </div>
+            </Field>
           </div>
 
-          {/* Email Address */}
-          <div className="col-span-1">
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Email Address
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuMail className="w-5 h-5" />
-              </span>
-              <input
-                type="email"
-                name="email"
-                id="email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="john.doe@example.com"
-              />
-            </div>
-          </div>
-
-          {/* Phone Number */}
-          <div className="col-span-1">
-            <label
-              htmlFor="phone"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Phone Number
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuPhone className="w-5 h-5" />
-              </span>
-              <input
-                type="tel"
-                name="phone"
-                id="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="+1 234 567 890"
-              />
-            </div>
-          </div>
-
-          {/* Department */}
-          <div className="col-span-1">
-            <label
-              htmlFor="department"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Department
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuBuilding2 className="w-5 h-5" />
-              </span>
-              <select
-                name="department"
-                id="department"
-                value={formData.department}
-                onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">Select Department</option>
-                <option value="Cardiology">Cardiology</option>
-                <option value="Neurology">Neurology</option>
-                <option value="Orthopedics">Orthopedics</option>
-                <option value="Pediatrics">Pediatrics</option>
-                <option value="Surgery">Surgery</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Specialization */}
           <div className="md:col-span-2">
-            <label
-              htmlFor="specialization"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Specialization
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuStethoscope className="w-5 h-5" />
-              </span>
-              <input
-                type="text"
-                name="specialization"
-                id="specialization"
-                value={formData.specialization}
-                onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="e.g., Heart Surgeon"
-              />
-            </div>
-          </div>
-
-          {/* Date of Birth */}
-          <div className="col-span-1">
-            <label
-              htmlFor="dob"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Date of Birth
-            </label>
-            <div className="relative mt-2">
-              <span className="absolute left-3 top-3.5 text-gray-400">
-                <LuCalendar className="w-5 h-5" />
-              </span>
-              <input
-                type="date"
-                name="dob"
-                id="dob"
-                value={formData.dob}
-                onChange={handleChange}
-                required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* Profile Picture Upload */}
-          <div className="col-span-1">
-            <label
-              htmlFor="profilePicture"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Profile Picture
-            </label>
-            <div className="relative mt-2">
-              <label
-                htmlFor="profilePicture"
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                           flex items-center cursor-pointer text-gray-500
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <span className="absolute left-3 top-3.5 text-gray-400">
-                  <LuUpload className="w-5 h-5" />
-                </span>
-                Choose File
-              </label>
-              <input
-                type="file"
-                name="profilePicture"
-                id="profilePicture"
-                accept="image/*"
-                className="sr-only" // Input ko chupa dein, label se trigger hoga
-              />
-            </div>
-          </div>
-
-          {/* Doctor Bio */}
-          <div className="md:col-span-2">
-            <label
-              htmlFor="bio"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Doctor&apos;s Bio
-            </label>
-            <div className="relative mt-2">
+            <Field label="Doctor Bio" icon={LuStethoscope}>
               <textarea
                 name="bio"
-                id="bio"
                 rows={4}
                 value={formData.bio}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg 
-                           focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Write a brief description about the doctor..."
-              ></textarea>
-            </div>
+                className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Brief profile, consultation style, and procedures handled."
+              />
+            </Field>
           </div>
         </div>
 
-        {/* --- Submit Button --- */}
-        <div className="flex justify-end pt-4">
+        {error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="flex justify-end">
           <button
             type="submit"
-            className="flex items-center justify-center py-3 px-6 font-semibold text-white 
-                       bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none 
-                       focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <LuSave className="w-5 h-5 mr-2" />
-            Save Doctor
+            <LuSave className="h-5 w-5" />
+            {isSaving ? 'Saving Doctor...' : 'Save Doctor'}
           </button>
         </div>
       </form>
@@ -294,8 +266,24 @@ export default function AddDoctorPage() {
   );
 }
 
-
-
-
-
-
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-3.5 text-gray-400">
+          <Icon className="h-5 w-5" />
+        </span>
+        {children}
+      </div>
+    </label>
+  );
+}

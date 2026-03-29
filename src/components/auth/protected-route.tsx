@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getRoleMeta, readSession, subscribeToSession, type UserRole } from '@/lib/auth';
+import { getRoleMeta, type UserRole } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
 
 type ProtectedRouteProps = {
   role: UserRole;
@@ -11,7 +12,7 @@ type ProtectedRouteProps = {
 
 export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
   const router = useRouter();
-  const session = useSyncExternalStore(subscribeToSession, readSession, () => null);
+  const session = useSession();
 
   useEffect(() => {
     if (!session) {

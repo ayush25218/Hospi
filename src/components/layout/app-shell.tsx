@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { RoleSidebar } from '@/components/navigation/role-sidebar';
 import { getNavigationForRole } from '@/config/navigation';
-import { getRoleMeta, readSession, subscribeToSession, type UserRole } from '@/lib/auth';
+import { getRoleMeta, type UserRole } from '@/lib/auth';
+import { useSession } from '@/hooks/use-session';
 
 type AppShellProps = {
   role: UserRole;
@@ -14,7 +15,7 @@ type AppShellProps = {
 export function AppShell({ role, children }: AppShellProps) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const session = useSyncExternalStore(subscribeToSession, readSession, () => null);
+  const session = useSession();
   const userName = session?.name ?? getRoleMeta(role).label;
   const navigation = getNavigationForRole(role);
 
