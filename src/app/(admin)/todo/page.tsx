@@ -1,203 +1,529 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
+import { useEffect, useMemo, useState } from 'react';
 import {
-  LuPlus,
+  LuCalendarDays,
+  LuClipboardList,
+  LuClock3,
+  LuSave,
+  LuSearch,
+  LuStethoscope,
   LuTrash2,
-  LuUser,
-  LuCalendar,
-  LuClock,
-  LuActivity,
-  LuChevronLeft,
-  LuChevronRight,
-} from "react-icons/lu";
-import { motion, AnimatePresence } from "framer-motion";
+  LuUserRound,
+} from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  formatDateTime,
+  type DoctorRecord,
+  type OperationRecord,
+  type OperationStatus,
+  type PatientRecord,
+} from '@/lib/api-client';
+import { getTodayInputValue } from '@/lib/date-inputs';
+
+type OperationFormState = {
+  doctorId: string;
+  patientId: string;
+  operationName: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  roomNumber: string;
+  status: OperationStatus;
+  notes: string;
+};
+
+const initialForm: OperationFormState = {
+  doctorId: '',
+  patientId: '',
+  operationName: '',
+  scheduledDate: getTodayInputValue(),
+  scheduledTime: '10:00',
+  roomNumber: '',
+  status: 'pending',
+  notes: '',
+};
 
 export default function OperationTodoList() {
-  const [showForm, setShowForm] = useState(false);
+  const session = useSession();
+  const [operations, setOperations] = useState<OperationRecord[]>([]);
+  const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [formData, setFormData] = useState<OperationFormState>(initialForm);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | OperationStatus>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  const [operations, setOperations] = useState([
-    { id: 1, doctor: "Dr. Rohan Sharma", patient: "Amit Kumar", operation: "Appendix Removal", date: "2025-11-05", time: "10:00 AM", status: "Completed" },
-    { id: 2, doctor: "Dr. Neha Singh", patient: "Ravi Patel", operation: "Knee Replacement", date: "2025-11-06", time: "12:30 PM", status: "In Progress" },
-    { id: 3, doctor: "Dr. Arjun Verma", patient: "Pooja Sinha", operation: "Heart Surgery", date: "2025-11-07", time: "09:00 AM", status: "Pending" },
-    { id: 4, doctor: "Dr. Aman Gupta", patient: "Suresh Yadav", operation: "Eye Cataract", date: "2025-11-08", time: "03:00 PM", status: "Completed" },
-    { id: 5, doctor: "Dr. Kavita Mishra", patient: "Anjali Devi", operation: "Gallbladder Removal", date: "2025-11-09", time: "11:30 AM", status: "Pending" },
-    { id: 6, doctor: "Dr. Rajat Jain", patient: "Rahul Mehta", operation: "Hernia Repair", date: "2025-11-10", time: "02:00 PM", status: "In Progress" },
-    { id: 7, doctor: "Dr. Sneha Kapoor", patient: "Meena Kumari", operation: "C-Section Delivery", date: "2025-11-11", time: "08:00 AM", status: "Completed" },
-  ]);
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
 
-  const [formData, setFormData] = useState({
-    doctor: "",
-    patient: "",
-    operation: "",
-    date: "",
-    time: "",
-    status: "Pending",
-  });
+    let isActive = true;
 
-  // Pagination setup
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
-  const totalPages = Math.ceil(operations.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = operations.slice(startIndex, startIndex + itemsPerPage);
+    const loadData = async () => {
+      setIsLoading(true);
+      setError('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+      try {
+        const [operationsResponse, doctorsResponse, patientsResponse] = await Promise.all([
+          apiRequest<OperationRecord[]>('/operations', {}, session),
+          apiRequest<DoctorRecord[]>('/doctors', {}, session),
+          apiRequest<PatientRecord[]>('/patients', {}, session),
+        ]);
+
+        if (isActive) {
+          setOperations(operationsResponse);
+          setDoctors(doctorsResponse);
+          setPatients(patientsResponse);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load operation schedule right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredOperations = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return operations.filter((operation) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        operation.operationName.toLowerCase().includes(normalizedSearch) ||
+        operation.doctorName.toLowerCase().includes(normalizedSearch) ||
+        operation.patientName.toLowerCase().includes(normalizedSearch) ||
+        operation.roomNumber?.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus = statusFilter === 'all' || operation.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [operations, searchTerm, statusFilter]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const addOperation = (e: React.FormEvent) => {
-    e.preventDefault();
-    setOperations([...operations, { id: Date.now(), ...formData }]);
-    setFormData({ doctor: "", patient: "", operation: "", date: "", time: "", status: "Pending" });
-    setShowForm(false);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const createdOperation = await apiRequest<OperationRecord>(
+        '/operations',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            doctorId: formData.doctorId,
+            patientId: formData.patientId,
+            operationName: formData.operationName.trim(),
+            scheduledAt: new Date(`${formData.scheduledDate}T${formData.scheduledTime}:00`).toISOString(),
+            roomNumber: formData.roomNumber.trim() || undefined,
+            status: formData.status,
+            notes: formData.notes.trim() || undefined,
+          }),
+        },
+        session,
+      );
+
+      setOperations((current) => [createdOperation, ...current].sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt)));
+      setFormData(initialForm);
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this operation right now.'));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const deleteOperation = (id: number) => {
-    setOperations(operations.filter((op) => op.id !== id));
+  const updateStatus = async (operationId: string, status: OperationStatus) => {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      const updatedOperation = await apiRequest<OperationRecord>(
+        `/operations/${operationId}/status`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        },
+        session,
+      );
+
+      setOperations((current) =>
+        current.map((operation) => (operation._id === operationId ? updatedOperation : operation)),
+      );
+    } catch (updateError) {
+      setError(describeError(updateError, 'Unable to update this operation right now.'));
+    }
   };
+
+  const handleDelete = async (operationId: string) => {
+    if (!session?.token) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this operation?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest<null>(
+        `/operations/${operationId}`,
+        {
+          method: 'DELETE',
+        },
+        session,
+      );
+
+      setOperations((current) => current.filter((operation) => operation._id !== operationId));
+    } catch (deleteError) {
+      setError(describeError(deleteError, 'Unable to delete this operation right now.'));
+    }
+  };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Operation scheduling now loads from MongoDB. Sign in again through the admin portal to manage the live surgery queue."
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-indigo-50 to-white p-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-indigo-700">🩺 Operation To-Do List</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl shadow hover:bg-indigo-700 transition-all"
-          >
-            <LuPlus /> Add New Operation
-          </button>
-        </div>
-
-        {/* Add Operation Form */}
-        <AnimatePresence>
-          {showForm && (
-            <motion.form
-              onSubmit={addOperation}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-white border border-indigo-100 shadow-md rounded-2xl p-6 mb-6"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Doctor Name</label>
-                  <input name="doctor" value={formData.doctor} onChange={handleChange} placeholder="Enter doctor name" required
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Patient Name</label>
-                  <input name="patient" value={formData.patient} onChange={handleChange} placeholder="Enter patient name" required
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Operation Type</label>
-                  <input name="operation" value={formData.operation} onChange={handleChange} placeholder="Enter operation type" required
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Date</label>
-                  <input type="date" name="date" value={formData.date} onChange={handleChange} required
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Time</label>
-                  <input type="time" name="time" value={formData.time} onChange={handleChange} required
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-600 mb-1">Status</label>
-                  <select name="status" value={formData.status} onChange={handleChange}
-                    className="w-full border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    <option>Pending</option>
-                    <option>In Progress</option>
-                    <option>Completed</option>
-                  </select>
-                </div>
-              </div>
-              <button
-                type="submit"
-                className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-all"
-              >
-                Save Operation
-              </button>
-            </motion.form>
-          )}
-        </AnimatePresence>
-
-        {/* Operation List */}
-        <div className="bg-white rounded-2xl shadow-md border border-indigo-100">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-indigo-600 text-white text-left">
-                <th className="py-3 px-4 rounded-tl-2xl">Doctor</th>
-                <th className="py-3 px-4">Patient</th>
-                <th className="py-3 px-4">Operation</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Time</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 rounded-tr-2xl text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map((op) => (
-                <tr key={op.id} className="border-b hover:bg-indigo-50 transition-all">
-                  <td className="py-3 px-4 flex items-center gap-2"><LuUser /> {op.doctor}</td>
-                  <td className="py-3 px-4">{op.patient}</td>
-                  <td className="py-3 px-4 flex items-center gap-2"><LuActivity /> {op.operation}</td>
-                  <td className="py-3 px-4 flex items-center gap-1"><LuCalendar /> {op.date}</td>
-                  <td className="py-3 px-4 flex items-center gap-1"><LuClock /> {op.time}</td>
-                  <td className={`py-3 px-4 font-medium ${op.status === "Completed"
-                      ? "text-green-600"
-                      : op.status === "In Progress"
-                      ? "text-yellow-600"
-                      : "text-red-600"
-                    }`}>
-                    {op.status}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => deleteOperation(op.id)}
-                      className="text-red-500 hover:text-red-700 transition-all"
-                    >
-                      <LuTrash2 />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Pagination */}
-          <div className="flex justify-between items-center p-4">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-              disabled={currentPage === 1}
-              className={`flex items-center gap-1 px-3 py-1 rounded-lg ${currentPage === 1
-                ? "bg-gray-200 text-gray-500"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
-                }`}
-            >
-              <LuChevronLeft /> Previous
-            </button>
-            <span className="text-gray-600 font-medium">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className={`flex items-center gap-1 px-3 py-1 rounded-lg ${currentPage === totalPages
-                ? "bg-gray-200 text-gray-500"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
-                }`}
-            >
-              Next <LuChevronRight />
-            </button>
+    <div className="space-y-8">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuClipboardList className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Operation Scheduler</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Keep surgery planning, room references, and status progression in one live schedule.
+            </p>
           </div>
         </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-950">Schedule operation</h2>
+          <p className="mt-1 text-sm text-slate-500">Create a new OT task using real patient and doctor records.</p>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <Field label="Doctor" icon={LuStethoscope}>
+              <select
+                name="doctorId"
+                value={formData.doctorId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                required
+              >
+                <option value="">Select doctor</option>
+                {doctors.map((doctor) => (
+                  <option key={doctor._id} value={doctor._id}>
+                    {doctor.user.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Patient" icon={LuUserRound}>
+              <select
+                name="patientId"
+                value={formData.patientId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                required
+              >
+                <option value="">Select patient</option>
+                {patients.map((patient) => (
+                  <option key={patient._id} value={patient._id}>
+                    {patient.user.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Operation name">
+              <input
+                type="text"
+                name="operationName"
+                value={formData.operationName}
+                onChange={handleChange}
+                placeholder="Appendectomy"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                required
+              />
+            </Field>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <Field label="Date" icon={LuCalendarDays}>
+                <input
+                  type="date"
+                  name="scheduledDate"
+                  value={formData.scheduledDate}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  required
+                />
+              </Field>
+
+              <Field label="Time" icon={LuClock3}>
+                <input
+                  type="time"
+                  name="scheduledTime"
+                  value={formData.scheduledTime}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  required
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <Field label="OT / room number">
+                <input
+                  type="text"
+                  name="roomNumber"
+                  value={formData.roomNumber}
+                  onChange={handleChange}
+                  placeholder="OT-2"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                />
+              </Field>
+
+              <Field label="Status">
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="pending">Pending</option>
+                  <option value="in-progress">In progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Notes">
+              <textarea
+                name="notes"
+                rows={4}
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Pre-op requirements or handoff note"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              />
+            </Field>
+
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving operation...' : 'Save operation'}
+            </button>
+          </form>
+        </section>
+
+        <section className="space-y-6">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <LuSearch className="h-4 w-4 text-slate-400" />
+                  Search operations
+                </span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Operation, doctor, patient, or room"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Status</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as 'all' | OperationStatus)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="in-progress">In progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Procedure</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Doctor / Patient</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Schedule</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                        Loading operations...
+                      </td>
+                    </tr>
+                  ) : filteredOperations.length > 0 ? (
+                    filteredOperations.map((operation) => (
+                      <tr key={operation._id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{operation.operationName}</p>
+                          <p className="text-xs text-slate-500">{operation.roomNumber || 'Room not assigned yet'}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          <p className="font-medium text-slate-900">{operation.doctorName}</p>
+                          <p>{operation.patientName}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{formatDateTime(operation.scheduledAt)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(operation.status)}`}>
+                            {toLabel(operation.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {operation.status !== 'completed' ? (
+                              <button
+                                type="button"
+                                onClick={() => void updateStatus(operation._id, 'completed')}
+                                className="rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                Complete
+                              </button>
+                            ) : null}
+                            {operation.status === 'pending' ? (
+                              <button
+                                type="button"
+                                onClick={() => void updateStatus(operation._id, 'in-progress')}
+                                className="rounded-full border border-sky-200 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-50"
+                              >
+                                Start
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => void handleDelete(operation._id)}
+                              className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                            >
+                              <LuTrash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                        No operations found for the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
       </div>
     </div>
   );
+}
+
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function getStatusClasses(status: OperationStatus) {
+  switch (status) {
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'in-progress':
+      return 'bg-sky-100 text-sky-700';
+    case 'cancelled':
+      return 'bg-rose-100 text-rose-700';
+    case 'pending':
+    default:
+      return 'bg-amber-100 text-amber-700';
+  }
+}
+
+function toLabel(value: string) {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }

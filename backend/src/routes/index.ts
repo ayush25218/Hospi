@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDatabaseStatus } from '../db/connect-database.js';
+import { appSettingRoutes } from '../modules/app-setting/app-setting.routes.js';
 import { appointmentRoutes } from '../modules/appointment/appointment.routes.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
 import { contactRoutes } from '../modules/contact/contact.routes.js';
@@ -10,7 +11,12 @@ import { fileEntryRoutes } from '../modules/file-entry/file-entry.routes.js';
 import { invoiceRoutes } from '../modules/invoice/invoice.routes.js';
 import { leaveRequestRoutes } from '../modules/leave-request/leave-request.routes.js';
 import { noticeRoutes } from '../modules/notice/notice.routes.js';
+import { operationRoutes } from '../modules/operation/operation.routes.js';
 import { patientRoutes } from '../modules/patient/patient.routes.js';
+import { paymentRoutes } from '../modules/payment/payment.routes.js';
+import { payrollRoutes } from '../modules/payroll/payroll.routes.js';
+import { roomRoutes } from '../modules/room/room.routes.js';
+import { staffMemberRoutes } from '../modules/staff-member/staff-member.routes.js';
 
 const router = Router();
 
@@ -26,6 +32,7 @@ router.get('/health', (_req, res) => {
   });
 });
 
+router.use('/settings', appSettingRoutes);
 router.use('/auth', authRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/departments', departmentRoutes);
@@ -35,7 +42,12 @@ router.use('/files', fileEntryRoutes);
 router.use('/invoices', invoiceRoutes);
 router.use('/leave-requests', leaveRequestRoutes);
 router.use('/notices', noticeRoutes);
+router.use('/operations', operationRoutes);
 router.use('/patients', patientRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/payroll', payrollRoutes);
 router.use('/appointments', appointmentRoutes);
+router.use('/rooms', roomRoutes);
+router.use('/staff-members', staffMemberRoutes);
 
 export const apiRouter = router;

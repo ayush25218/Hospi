@@ -1,334 +1,605 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from 'react';
 import {
-  FaMoneyBillWave,
-  FaPlus,
-  FaTrashAlt,
-  FaPrint,
-  FaSearch,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaClock,
-  FaArrowLeft,
-  FaArrowRight,
-} from "react-icons/fa";
+  LuBadgeIndianRupee,
+  LuCalendarDays,
+  LuCheckCheck,
+  LuCreditCard,
+  LuReceiptText,
+  LuSave,
+  LuSearch,
+  LuTrash2,
+  LuUserRound,
+} from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import {
+  apiRequest,
+  describeError,
+  formatCurrency,
+  formatDate,
+  type InvoiceRecord,
+  type PatientRecord,
+  type PaymentMethod,
+  type PaymentRecord,
+  type PaymentStatus,
+} from '@/lib/api-client';
+import { getTodayInputValue, toIsoDateValue } from '@/lib/date-inputs';
 
-interface Payment {
-  id: number;
-  paymentId: string;
+type PaymentFormState = {
   payerName: string;
-  date: string;
-  amount: number;
-  method: string;
-  status: "Success" | "Pending" | "Failed";
-}
+  payerEmail: string;
+  patientId: string;
+  invoiceId: string;
+  amount: string;
+  paymentDate: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  notes: string;
+};
+
+const initialForm: PaymentFormState = {
+  payerName: '',
+  payerEmail: '',
+  patientId: '',
+  invoiceId: '',
+  amount: '',
+  paymentDate: getTodayInputValue(),
+  method: 'upi',
+  status: 'success',
+  notes: '',
+};
 
 export default function PaymentsPage() {
-  const [showForm, setShowForm] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const paymentsPerPage = 5;
+  const session = useSession();
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [formData, setFormData] = useState<PaymentFormState>(initialForm);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  // Dummy Data
-  const [payments, setPayments] = useState<Payment[]>([
-    {
-      id: 1,
-      paymentId: "PAY-101",
-      payerName: "Aarav Sharma",
-      date: "2025-11-01",
-      amount: 5000,
-      method: "UPI",
-      status: "Success",
-    },
-    {
-      id: 2,
-      paymentId: "PAY-102",
-      payerName: "Riya Singh",
-      date: "2025-11-02",
-      amount: 2500,
-      method: "Credit Card",
-      status: "Pending",
-    },
-    {
-      id: 3,
-      paymentId: "PAY-103",
-      payerName: "Vikram Mehra",
-      date: "2025-11-03",
-      amount: 3000,
-      method: "Cash",
-      status: "Success",
-    },
-    {
-      id: 4,
-      paymentId: "PAY-104",
-      payerName: "Amit Verma",
-      date: "2025-11-04",
-      amount: 4500,
-      method: "Debit Card",
-      status: "Failed",
-    },
-  ]);
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
 
-  // Pagination logic
-  const indexOfLast = currentPage * paymentsPerPage;
-  const indexOfFirst = indexOfLast - paymentsPerPage;
-  const currentPayments = payments.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(payments.length / paymentsPerPage);
+    let isActive = true;
 
-  const handleAddPayment = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
-    const newPayment: Payment = {
-      id: Date.now(),
-      paymentId: `PAY-${Date.now()}`,
-      payerName: data.get("payerName") as string,
-      date: data.get("date") as string,
-      amount: parseFloat(data.get("amount") as string),
-      method: data.get("method") as string,
-      status: "Success",
+    const loadData = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const [paymentsResponse, patientsResponse, invoicesResponse] = await Promise.all([
+          apiRequest<PaymentRecord[]>('/payments', {}, session),
+          apiRequest<PatientRecord[]>('/patients', {}, session),
+          apiRequest<InvoiceRecord[]>('/invoices', {}, session),
+        ]);
+
+        if (isActive) {
+          setPayments(paymentsResponse);
+          setPatients(patientsResponse);
+          setInvoices(invoicesResponse);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load payments right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
     };
-    setPayments([...payments, newPayment]);
-    setShowForm(false);
-    form.reset();
-    alert("Payment added successfully!");
+
+    void loadData();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredPayments = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return payments.filter((payment) => {
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        payment.payerName.toLowerCase().includes(normalizedSearch) ||
+        payment.paymentNumber.toLowerCase().includes(normalizedSearch) ||
+        payment.patient?.user.name.toLowerCase().includes(normalizedSearch) ||
+        payment.invoice?.invoiceNumber.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [payments, searchTerm, statusFilter]);
+
+  const totals = useMemo(() => {
+    return filteredPayments.reduce(
+      (summary, payment) => {
+        summary.total += payment.amount;
+
+        if (payment.status === 'success') {
+          summary.success += payment.amount;
+        }
+
+        if (payment.status === 'pending') {
+          summary.pending += payment.amount;
+        }
+
+        return summary;
+      },
+      { total: 0, success: 0, pending: 0 },
+    );
+  }, [filteredPayments]);
+
+  const handleChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value } = event.target;
+
+    if (name === 'patientId') {
+      const selectedPatient = patients.find((patient) => patient._id === value);
+
+      setFormData((current) => ({
+        ...current,
+        patientId: value,
+        payerName: selectedPatient?.user.name ?? current.payerName,
+        payerEmail: selectedPatient?.user.email ?? current.payerEmail,
+      }));
+      return;
+    }
+
+    if (name === 'invoiceId') {
+      const selectedInvoice = invoices.find((invoice) => invoice._id === value);
+
+      setFormData((current) => ({
+        ...current,
+        invoiceId: value,
+        amount: selectedInvoice ? String(selectedInvoice.totalAmount) : current.amount,
+      }));
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure to delete this payment?")) {
-      setPayments(payments.filter((p) => p.id !== id));
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      setError('Your admin session is missing its backend token. Sign in again from the admin login page.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const createdPayment = await apiRequest<PaymentRecord>(
+        '/payments',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            payerName: formData.payerName.trim(),
+            payerEmail: formData.payerEmail.trim().toLowerCase() || undefined,
+            patientId: formData.patientId || undefined,
+            invoiceId: formData.invoiceId || undefined,
+            amount: Number(formData.amount),
+            paymentDate: toIsoDateValue(formData.paymentDate),
+            method: formData.method,
+            status: formData.status,
+            notes: formData.notes.trim() || undefined,
+          }),
+        },
+        session,
+      );
+
+      setPayments((current) => [createdPayment, ...current]);
+      setFormData(initialForm);
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save this payment right now.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handlePrintAll = () => {
-    window.print();
+  const updateStatus = async (paymentId: string, status: PaymentStatus) => {
+    if (!session?.token) {
+      return;
+    }
+
+    try {
+      const updatedPayment = await apiRequest<PaymentRecord>(
+        `/payments/${paymentId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        },
+        session,
+      );
+
+      setPayments((current) => current.map((payment) => (payment._id === paymentId ? updatedPayment : payment)));
+    } catch (updateError) {
+      setError(describeError(updateError, 'Unable to update payment status right now.'));
+    }
   };
 
+  const handleDelete = async (paymentId: string) => {
+    if (!session?.token) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this payment record?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest<null>(
+        `/payments/${paymentId}`,
+        {
+          method: 'DELETE',
+        },
+        session,
+      );
+
+      setPayments((current) => current.filter((payment) => payment._id !== paymentId));
+    } catch (deleteError) {
+      setError(describeError(deleteError, 'Unable to delete this payment right now.'));
+    }
+  };
+
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Payments now load from MongoDB. Sign in again through the admin portal to manage the live payment desk."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-100 to-gray-200 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-xl"
-      >
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <FaMoneyBillWave className="text-indigo-600 text-3xl" />
-            <h1 className="text-2xl font-bold text-gray-800">Payments</h1>
+    <div className="space-y-8">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuCreditCard className="h-6 w-6" />
           </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrintAll}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-            >
-              <FaPrint /> Print All
-            </button>
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
-            >
-              <FaPlus /> Add Payment
-            </button>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Payments Desk</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Track patient collections, invoice settlements, and payment status without dummy transactions.
+            </p>
           </div>
         </div>
+      </section>
 
-        {/* Search Bar */}
-        <div className="relative mb-4">
-          <FaSearch className="absolute left-3 top-3 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by payer name or ID..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-          />
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
         </div>
+      ) : null}
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm md:text-base border-collapse">
-            <thead>
-              <tr className="bg-indigo-600 text-white">
-                <th className="py-3 px-4 text-left rounded-tl-lg">Payment ID</th>
-                <th className="py-3 px-4 text-left">Payer Name</th>
-                <th className="py-3 px-4 text-left">Date</th>
-                <th className="py-3 px-4 text-left">Amount</th>
-                <th className="py-3 px-4 text-left">Method</th>
-                <th className="py-3 px-4 text-left">Status</th>
-                <th className="py-3 px-4 text-center rounded-tr-lg">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentPayments.map((payment) => (
-                <tr
-                  key={payment.id}
-                  className="border-b hover:bg-gray-50 transition"
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-slate-950">Record payment</h2>
+          <p className="mt-1 text-sm text-slate-500">Log a new hospital payment against a patient or invoice.</p>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <Field label="Patient" icon={LuUserRound}>
+              <select
+                name="patientId"
+                value={formData.patientId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              >
+                <option value="">Select patient</option>
+                {patients.map((patient) => (
+                  <option key={patient._id} value={patient._id}>
+                    {patient.user.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Invoice" icon={LuReceiptText}>
+              <select
+                name="invoiceId"
+                value={formData.invoiceId}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              >
+                <option value="">Optional invoice link</option>
+                {invoices.map((invoice) => (
+                  <option key={invoice._id} value={invoice._id}>
+                    {invoice.invoiceNumber} · {invoice.recipientName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Payer name">
+              <input
+                type="text"
+                name="payerName"
+                value={formData.payerName}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Aarav Sharma"
+                required
+              />
+            </Field>
+
+            <Field label="Payer email">
+              <input
+                type="email"
+                name="payerEmail"
+                value={formData.payerEmail}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="aarav@hospi.com"
+              />
+            </Field>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <Field label="Amount" icon={LuBadgeIndianRupee}>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  name="amount"
+                  value={formData.amount}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  placeholder="5000"
+                  required
+                />
+              </Field>
+
+              <Field label="Payment date" icon={LuCalendarDays}>
+                <input
+                  type="date"
+                  name="paymentDate"
+                  value={formData.paymentDate}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  required
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <Field label="Method">
+                <select
+                  name="method"
+                  value={formData.method}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
                 >
-                  <td className="py-3 px-4 font-medium text-gray-800">
-                    {payment.paymentId}
-                  </td>
-                  <td className="py-3 px-4">{payment.payerName}</td>
-                  <td className="py-3 px-4">{payment.date}</td>
-                  <td className="py-3 px-4 font-semibold text-gray-800">
-                    ₹{payment.amount}
-                  </td>
-                  <td className="py-3 px-4">{payment.method}</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold w-fit ${
-                        payment.status === "Success"
-                          ? "bg-green-100 text-green-700"
-                          : payment.status === "Pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {payment.status === "Success" && <FaCheckCircle />}
-                      {payment.status === "Pending" && <FaClock />}
-                      {payment.status === "Failed" && <FaTimesCircle />}
-                      {payment.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => handleDelete(payment.id)}
-                      className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
-                      title="Delete Payment"
-                    >
-                      <FaTrashAlt />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  <option value="cash">Cash</option>
+                  <option value="upi">UPI</option>
+                  <option value="credit-card">Credit card</option>
+                  <option value="debit-card">Debit card</option>
+                  <option value="net-banking">Net banking</option>
+                </select>
+              </Field>
 
-        {/* Pagination */}
-        <div className="flex justify-between items-center mt-6">
-          <button
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => p - 1)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${
-              currentPage === 1
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-            }`}
-          >
-            <FaArrowLeft /> Prev
-          </button>
+              <Field label="Status">
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="success">Success</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
+                </select>
+              </Field>
+            </div>
 
-          <span className="text-gray-700 font-medium">
-            Page {currentPage} of {totalPages}
-          </span>
+            <Field label="Notes">
+              <textarea
+                name="notes"
+                rows={4}
+                value={formData.notes}
+                onChange={handleChange}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                placeholder="Desk note, settlement reference, or remark"
+              />
+            </Field>
 
-          <button
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => p + 1)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold ${
-              currentPage === totalPages
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-            }`}
-          >
-            Next <FaArrowRight />
-          </button>
-        </div>
-      </motion.div>
-
-      {/* Add Payment Modal */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex justify-center items-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md"
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <h2 className="text-xl font-bold text-gray-800 mb-4">
-                Add New Payment
-              </h2>
-              <form onSubmit={handleAddPayment} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Payer Name
-                  </label>
-                  <input
-                    name="payerName"
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Amount (₹)
-                  </label>
-                  <input
-                    name="amount"
-                    type="number"
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter amount"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Payment Date
-                  </label>
-                  <input
-                    name="date"
-                    type="date"
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Payment Method
-                  </label>
-                  <select
-                    name="method"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                    required
-                  >
-                    <option value="">Select Method</option>
-                    <option value="Cash">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Debit Card">Debit Card</option>
-                    <option value="Net Banking">Net Banking</option>
-                  </select>
-                </div>
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving payment...' : 'Save payment'}
+            </button>
+          </form>
+        </section>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(false)}
-                    className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                  >
-                    Save Payment
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <section className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryCard label="Visible transactions" value={String(filteredPayments.length)} />
+            <SummaryCard label="Collected" value={formatCurrency(totals.success)} />
+            <SummaryCard label="Pending" value={formatCurrency(totals.pending)} />
+          </div>
+
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+              <label className="block">
+                <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <LuSearch className="h-4 w-4 text-slate-400" />
+                  Search payments
+                </span>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Payer, payment ID, patient, invoice"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Status filter</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as 'all' | PaymentStatus)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="success">Success</option>
+                  <option value="pending">Pending</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Transaction</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Linked records</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Amount</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Method</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Status</th>
+                    <th className="px-4 py-3 text-sm font-semibold text-slate-600">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                        Loading payments...
+                      </td>
+                    </tr>
+                  ) : filteredPayments.length > 0 ? (
+                    filteredPayments.map((payment) => (
+                      <tr key={payment._id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{payment.paymentNumber}</p>
+                          <p className="text-xs text-slate-500">
+                            {payment.payerName} · {formatDate(payment.paymentDate)}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          <p>{payment.patient?.user.name || 'No patient linked'}</p>
+                          <p className="text-xs text-slate-500">{payment.invoice?.invoiceNumber || 'No invoice linked'}</p>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{formatCurrency(payment.amount)}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{toLabel(payment.method)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(payment.status)}`}>
+                            {toLabel(payment.status)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {payment.status !== 'success' ? (
+                              <button
+                                type="button"
+                                onClick={() => void updateStatus(payment._id, 'success')}
+                                className="inline-flex items-center gap-1 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                              >
+                                <LuCheckCheck className="h-3.5 w-3.5" />
+                                Mark success
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => void handleDelete(payment._id)}
+                              className="inline-flex items-center gap-1 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                            >
+                              <LuTrash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                        No payments found for the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </div>
     </div>
   );
+}
+
+function Field({
+  label,
+  icon: Icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function getStatusClasses(status: PaymentStatus) {
+  switch (status) {
+    case 'success':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'pending':
+      return 'bg-amber-100 text-amber-700';
+    case 'failed':
+      return 'bg-rose-100 text-rose-700';
+    case 'refunded':
+    default:
+      return 'bg-slate-200 text-slate-700';
+  }
+}
+
+function toLabel(value: string) {
+  return value
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }

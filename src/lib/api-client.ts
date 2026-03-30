@@ -187,6 +187,122 @@ export type NoticeRecord = {
   updatedAt: string;
 };
 
+export type StaffMemberStatus = 'active' | 'on-leave' | 'inactive';
+
+export type StaffMemberRecord = {
+  _id: string;
+  staffId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  department: string;
+  role: string;
+  status: StaffMemberStatus;
+  joinedAt: string;
+  photoUrl?: string;
+  notes?: string;
+  createdBy: BackendUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PaymentMethod = 'cash' | 'upi' | 'credit-card' | 'debit-card' | 'net-banking';
+export type PaymentStatus = 'success' | 'pending' | 'failed' | 'refunded';
+
+export type PaymentRecord = {
+  _id: string;
+  paymentNumber: string;
+  payerName: string;
+  payerEmail?: string;
+  patient?: PatientRecord | null;
+  invoice?: InvoiceRecord | null;
+  amount: number;
+  paymentDate: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  notes?: string;
+  createdBy: BackendUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PayrollStatus = 'paid' | 'pending';
+
+export type PayrollRecord = {
+  _id: string;
+  payrollNumber: string;
+  staffMember?: StaffMemberRecord | null;
+  employeeName: string;
+  employeeId: string;
+  department: string;
+  designation: string;
+  salary: number;
+  month: string;
+  paymentDate: string;
+  status: PayrollStatus;
+  notes?: string;
+  createdBy: BackendUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RoomStatus = 'available' | 'occupied' | 'cleaning' | 'maintenance';
+
+export type RoomRecord = {
+  _id: string;
+  roomNumber: string;
+  floor: string;
+  roomType: string;
+  bedLabel?: string;
+  status: RoomStatus;
+  patient?: PatientRecord | null;
+  doctor?: DoctorRecord | null;
+  admittedAt?: string;
+  notes?: string;
+  createdBy: BackendUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OperationStatus = 'pending' | 'in-progress' | 'completed' | 'cancelled';
+
+export type OperationRecord = {
+  _id: string;
+  doctor?: DoctorRecord | null;
+  patient?: PatientRecord | null;
+  doctorName: string;
+  patientName: string;
+  operationName: string;
+  scheduledAt: string;
+  status: OperationStatus;
+  roomNumber?: string;
+  notes?: string;
+  createdBy: BackendUser;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppSettingRecord = {
+  _id: string;
+  singletonKey: string;
+  appTitle: string;
+  address: string;
+  email: string;
+  phone: string;
+  footerText: string;
+  themeColor: string;
+  sidebarColor: string;
+  pageBgColor: string;
+  language: string;
+  timeZone: string;
+  currency: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  updatedBy?: BackendUser | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AuthResponse = {
   token: string;
   user: BackendUser;

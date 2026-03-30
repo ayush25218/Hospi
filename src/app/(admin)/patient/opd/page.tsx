@@ -1,318 +1,266 @@
-'use client'; // Filters, state, aur actions ke liye zaroori hai
+'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { LuCalendarDays, LuClock3, LuFilter, LuSearch, LuStethoscope, LuUserRound } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
 import {
-  LuUsers,
-  LuUserPlus,
-  LuSearch,
-  LuBuilding,
-  LuPencil,
-  LuFileText,
-  LuKey,
-  LuCopy,
-  LuCalendarDays,
-  LuFilter,
-  LuClock,
-  LuCircleCheck,    // Changed from LuCheckCircle
-  LuCircleX,
-} from 'react-icons/lu';
+  apiRequest,
+  describeError,
+  formatDateTime,
+  formatRecordId,
+  type AppointmentRecord,
+  type AppointmentStatus,
+} from '@/lib/api-client';
 
-// --- Dummy Data ---
-// (Asli app mein, yeh data API se aayega)
-const dummyOpdPatients = [
-  {
-    id: 1,
-    patientId: 'PID-2025-00123',
-    reportAccessCode: '882194',
-    name: 'Aarav Sharma',
-    age: 34,
-    phone: '+91 98765 43210',
-    appointmentTime: new Date(new Date().setHours(10, 30)), // Aaj
-    doctorName: 'Dr. Priya Gupta',
-    department: 'Cardiology',
-    status: 'Consulted',
-  },
-  {
-    id: 2,
-    patientId: 'PID-2025-00126',
-    reportAccessCode: '456123',
-    name: 'Sneha Patil',
-    age: 22,
-    phone: '+91 98765 43214',
-    appointmentTime: new Date(new Date().setHours(10, 45)), // Aaj
-    doctorName: 'Dr. Anjali Rao',
-    department: 'Pediatrics',
-    status: 'Waiting',
-  },
-  {
-    id: 3,
-    patientId: 'PID-2025-00125',
-    reportAccessCode: '739021',
-    name: 'Vikram Mehra',
-    age: 45,
-    phone: '+91 98765 43212',
-    appointmentTime: new Date(new Date().setDate(new Date().getDate() - 1)), // Kal
-    doctorName: 'Dr. Anjali Rao',
-    department: 'Pediatrics',
-    status: 'Consulted',
-  },
-  {
-    id: 4,
-    patientId: 'PID-2025-00127',
-    reportAccessCode: '987654',
-    name: 'Mohit Desai',
-    age: 58,
-    phone: '+91 98765 43215',
-    appointmentTime: new Date(new Date().setHours(9, 30)), // Aaj
-    doctorName: 'Dr. Rohan Joshi',
-    department: 'Neurology',
-    status: 'Cancelled',
-  },
-];
-
-type OpdStatus = 'All' | 'Waiting' | 'Consulted' | 'Cancelled';
 type TimeRange = 'daily' | 'monthly' | 'yearly' | 'all';
-const departments = ['All Departments', 'Cardiology', 'Neurology', 'Pediatrics', 'Orthopedics', 'Surgery'];
 
-/**
- * ==========================================
- * Main OPD Page Component
- * ==========================================
- */
 export default function OPDPage() {
+  const session = useSession();
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [deptFilter, setDeptFilter] = useState('All Departments');
-  const [statusFilter, setStatusFilter] = useState<OpdStatus>('All');
+  const [statusFilter, setStatusFilter] = useState<'all' | AppointmentStatus>('all');
   const [timeRange, setTimeRange] = useState<TimeRange>('daily');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Filter logic
-  const filteredPatients = dummyOpdPatients.filter((patient) => {
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadAppointments = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest<AppointmentRecord[]>('/appointments', {}, session);
+
+        if (isActive) {
+          setAppointments(response);
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load OPD visits right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadAppointments();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const filteredAppointments = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
     const today = new Date();
-    const apptDate = new Date(patient.appointmentTime);
 
-    // Search
-    const matchesSearch =
-      patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.patientId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm);
-    
-    // Department
-    const matchesDept =
-      deptFilter === 'All Departments' || patient.department === deptFilter;
+    return appointments.filter((appointment) => {
+      const visitDate = new Date(appointment.scheduledAt);
 
-    // Status
-    const matchesStatus =
-      statusFilter === 'All' || patient.status === statusFilter;
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        appointment.patient.user.name.toLowerCase().includes(normalizedSearch) ||
+        appointment.doctor.user.name.toLowerCase().includes(normalizedSearch) ||
+        appointment.reason.toLowerCase().includes(normalizedSearch) ||
+        formatRecordId('VIS', appointment._id).toLowerCase().includes(normalizedSearch);
 
-    // Time Range
-    let matchesTime = false;
-    switch (timeRange) {
-      case 'daily':
-        matchesTime = apptDate.toDateString() === today.toDateString();
-        break;
-      case 'monthly':
+      const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
+
+      let matchesTime = true;
+
+      if (timeRange === 'daily') {
+        matchesTime = visitDate.toDateString() === today.toDateString();
+      } else if (timeRange === 'monthly') {
         matchesTime =
-          apptDate.getMonth() === today.getMonth() &&
-          apptDate.getFullYear() === today.getFullYear();
-        break;
-      case 'yearly':
-        matchesTime = apptDate.getFullYear() === today.getFullYear();
-        break;
-      case 'all':
-      default:
-        matchesTime = true;
-        break;
-    }
+          visitDate.getMonth() === today.getMonth() && visitDate.getFullYear() === today.getFullYear();
+      } else if (timeRange === 'yearly') {
+        matchesTime = visitDate.getFullYear() === today.getFullYear();
+      }
 
-    return matchesSearch && matchesDept && matchesStatus && matchesTime;
-  });
+      return matchesSearch && matchesStatus && matchesTime;
+    });
+  }, [appointments, searchTerm, statusFilter, timeRange]);
 
-  // Copy helper
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert(`Copied to clipboard: ${text}`);
-  };
-
-  // Status Badge helper
-  const getStatusProps = (status: OpdStatus) => {
-    switch (status) {
-      case 'Consulted':
-        return { color: 'bg-green-100 text-green-800', icon: LuCircleCheck };
-      case 'Waiting':
-        return { color: 'bg-yellow-100 text-yellow-800', icon: LuClock };
-      case 'Cancelled':
-        return { color: 'bg-red-100 text-red-800', icon: LuCircleX };
-      default:
-        return { color: 'bg-gray-100 text-gray-800', icon: LuUsers };
-    }
-  };
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="OPD visits now load from MongoDB appointments. Sign in again through the admin portal to monitor the live visit queue."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* --- Header --- */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <LuUsers className="h-8 w-8 text-indigo-700" />
-          <h1 className="text-3xl font-bold text-gray-900">Out-Patient (OPD) Management</h1>
-        </div>
-        <Link
-          href="/patients/add" // Links to the "fast add" patient form
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg
-                     hover:bg-indigo-700 transition-colors"
-        >
-          <LuUserPlus className="w-5 h-5" />
-          New Patient Registration
-        </Link>
-      </div>
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+              <LuCalendarDays className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold text-slate-950">Out-Patient Visits</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Live visit queue sourced directly from the appointment schedule.
+              </p>
+            </div>
+          </div>
 
-      {/* --- Filters Bar --- */}
-      <div className="bg-white p-4 rounded-xl shadow-md space-y-4">
-        {/* Search & Dept */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <span className="absolute left-3 top-3.5 text-gray-400"><LuSearch className="w-5 h-5" /></span>
+          <Link
+            href="/appointment/add"
+            className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Create appointment
+          </Link>
+        </div>
+      </section>
+
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <label className="block">
+            <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <LuSearch className="h-4 w-4 text-slate-400" />
+              Search visits
+            </span>
             <input
               type="text"
-              placeholder="Search by name, Patient ID, or phone..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Patient, doctor, reason, or visit ref"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
             />
-          </div>
-          <div className="relative">
-            <span className="absolute left-3 top-3.5 text-gray-400"><LuBuilding className="w-5 h-5" /></span>
+          </label>
+
+          <label className="block">
+            <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <LuFilter className="h-4 w-4 text-slate-400" />
+              Status
+            </span>
             <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none
-                         focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as 'all' | AppointmentStatus)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
             >
-              {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+              <option value="all">All statuses</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
-          </div>
+          </label>
         </div>
-        {/* Time & Status Filters */}
-        <div className="flex flex-col md:flex-row justify-between gap-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-gray-600"><LuCalendarDays className="w-4 h-4 inline mr-1" />Date:</span>
-            {(['daily', 'monthly', 'yearly', 'all'] as TimeRange[]).map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={`px-3 py-1 text-sm font-medium rounded-full ${
-                  timeRange === range ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {range.charAt(0).toUpperCase() + range.slice(1)}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-gray-600"><LuFilter className="w-4 h-4 inline mr-1" />Status:</span>
-            {(['All', 'Waiting', 'Consulted', 'Cancelled'] as OpdStatus[]).map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1 text-sm font-medium rounded-full ${
-                  statusFilter === status ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {(['daily', 'monthly', 'yearly', 'all'] as TimeRange[]).map((range) => (
+            <button
+              key={range}
+              type="button"
+              onClick={() => setTimeRange(range)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                timeRange === range ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {range.charAt(0).toUpperCase() + range.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* --- OPD Patient List Table --- */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+      <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-full text-left">
-            <thead className="border-b border-gray-200 bg-gray-50">
+          <table className="min-w-full text-left">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Patient Details</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Patient ID</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Report Access Code</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Visit Details</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
-                <th className="py-3 px-4 text-sm font-semibold text-gray-600">Actions</th>
+                <th className="px-4 py-3 text-sm font-semibold text-slate-600">Visit</th>
+                <th className="px-4 py-3 text-sm font-semibold text-slate-600">Patient</th>
+                <th className="px-4 py-3 text-sm font-semibold text-slate-600">Doctor</th>
+                <th className="px-4 py-3 text-sm font-semibold text-slate-600">Schedule</th>
+                <th className="px-4 py-3 text-sm font-semibold text-slate-600">Status</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.length > 0 ? (
-                filteredPatients.map((patient) => {
-                  const statusProps = getStatusProps(patient.status as OpdStatus);
-                  const StatusIcon = statusProps.icon;
-                  return (
-                    <tr key={patient.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <p className="font-medium text-gray-900">{patient.name}</p>
-                            <p className="text-sm text-gray-500">{patient.phone}</p>
-                          </div>
-                        </div>
-                      </td>
-                      
-                      <td className="py-3 px-4">
-                        <code className="text-sm font-medium text-gray-700">{patient.patientId}</code>
-                      </td>
-                      
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <code className="text-lg font-bold text-indigo-600">{patient.reportAccessCode}</code>
-                          <button 
-                            onClick={() => copyToClipboard(patient.reportAccessCode)}
-                            className="p-1 text-gray-500 hover:text-indigo-600"
-                            title="Copy Code"
-                          >
-                            <LuCopy className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                      
-                      <td className="py-3 px-4">
-                        <p className="text-sm font-medium text-gray-700">{patient.doctorName}</p>
-                        <p className="text-xs text-gray-500">{patient.department}</p>
-                        <p className="text-xs text-gray-500 mt-1">{patient.appointmentTime.toLocaleString()}</p>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full 
-                                      text-xs font-medium ${statusProps.color}`}
-                        >
-                          <StatusIcon className="w-4 h-4" />
-                          {patient.status}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <button className="p-2 text-blue-600 hover:text-blue-800" title="View Reports (Admin)">
-                            <LuFileText className="w-4 h-4" />
-                          </button>
-                          <button className="p-2 text-indigo-600 hover:text-indigo-800" title="Edit Visit">
-                            <LuPencil className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                    Loading OPD visits...
+                  </td>
+                </tr>
+              ) : filteredAppointments.length > 0 ? (
+                filteredAppointments.map((appointment) => (
+                  <tr key={appointment._id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-900">{formatRecordId('VIS', appointment._id)}</p>
+                      <p className="text-xs text-slate-500">{appointment.reason}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="flex items-center gap-2 font-medium text-slate-900">
+                        <LuUserRound className="h-4 w-4 text-slate-400" />
+                        {appointment.patient.user.name}
+                      </p>
+                      <p className="text-xs text-slate-500">{formatRecordId('PAT', appointment.patient._id)}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="flex items-center gap-2 font-medium text-slate-900">
+                        <LuStethoscope className="h-4 w-4 text-slate-400" />
+                        {appointment.doctor.user.name}
+                      </p>
+                      <p className="text-xs text-slate-500">{appointment.doctor.department}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-600">
+                      <p className="flex items-center gap-2">
+                        <LuClock3 className="h-4 w-4 text-slate-400" />
+                        {formatDateTime(appointment.scheduledAt)}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(appointment.status)}`}>
+                        {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-gray-500">
-                    No OPD patients found matching your criteria.
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                    No OPD visits found for the current filters.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
+}
+
+function getStatusClasses(status: AppointmentStatus) {
+  switch (status) {
+    case 'confirmed':
+      return 'bg-sky-100 text-sky-700';
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'cancelled':
+      return 'bg-rose-100 text-rose-700';
+    case 'scheduled':
+    default:
+      return 'bg-amber-100 text-amber-700';
+  }
 }

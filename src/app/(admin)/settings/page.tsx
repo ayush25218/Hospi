@@ -1,394 +1,478 @@
-'use client'; // Tabs, forms, aur state ke liye zaroori hai
+'use client';
 
-import { useState, ChangeEvent, FormEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  LuSettings,
-  LuInfo,
-  LuPalette,
+  LuClock3,
   LuGlobe,
-  LuSave,
-  LuPhone,
-  LuMapPin,
-  LuClock,
-  LuDollarSign,
-  LuUpload,
   LuImage,
-  LuFileText,
   LuLayoutGrid,
-  LuPaintbrush,
   LuMail,
+  LuMapPin,
+  LuPaintbrush,
+  LuPhone,
+  LuSave,
+  LuSettings2,
+  LuType,
 } from 'react-icons/lu';
+import { BackendAccessNotice } from '@/components/state/backend-access-notice';
+import { useSession } from '@/hooks/use-session';
+import { apiRequest, describeError, type AppSettingRecord } from '@/lib/api-client';
 
-// --- Types ---
 type TabName = 'general' | 'branding' | 'localization';
 
-// --- Dummy State (Global for all settings) ---
-const initialSettings = {
-  // General
-  appTitle: 'Demo Hospital Limited',
-  address: '98 Green Road, Farmgate, Dhaka-1215',
-  email: 'bdtask@gmail.com',
-  phone: '1922296392',
-  footerText: '2025©Copyright bdtask',
-
-  // Branding
-  themeColor: '#4F46E5', // Indigo (Main Theme)
-  sidebarColor: '#111827', // Gray 900 (Sidebar)
-  pageBgColor: '#F9FAFB', // Gray 50 (Page Background)
-
-  // Localization
-  language: 'en',
-  timeZone: 'Asia/Dhaka',
-  currency: 'USD',
+type SettingsFormState = {
+  appTitle: string;
+  address: string;
+  email: string;
+  phone: string;
+  footerText: string;
+  themeColor: string;
+  sidebarColor: string;
+  pageBgColor: string;
+  logoUrl: string;
+  faviconUrl: string;
+  language: string;
+  timeZone: string;
+  currency: string;
 };
 
-/**
- * ==========================================
- * Main Settings Page Component
- * ==========================================
- */
+const initialForm: SettingsFormState = {
+  appTitle: '',
+  address: '',
+  email: '',
+  phone: '',
+  footerText: '',
+  themeColor: '#0f766e',
+  sidebarColor: '#0f172a',
+  pageBgColor: '#f8fafc',
+  logoUrl: '',
+  faviconUrl: '',
+  language: 'en',
+  timeZone: 'Asia/Calcutta',
+  currency: 'INR',
+};
+
 export default function SettingsPage() {
+  const session = useSession();
   const [activeTab, setActiveTab] = useState<TabName>('general');
-  const [settings, setSettings] = useState(initialSettings);
+  const [formData, setFormData] = useState<SettingsFormState>(initialForm);
+  const [settings, setSettings] = useState<AppSettingRecord | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  // Form ke data ko handle karein
+  useEffect(() => {
+    if (!session?.token) {
+      setIsLoading(false);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadSettings = async () => {
+      setIsLoading(true);
+      setError('');
+
+      try {
+        const response = await apiRequest<AppSettingRecord>('/settings', {}, session);
+
+        if (isActive) {
+          setSettings(response);
+          setFormData({
+            appTitle: response.appTitle,
+            address: response.address,
+            email: response.email,
+            phone: response.phone,
+            footerText: response.footerText,
+            themeColor: response.themeColor,
+            sidebarColor: response.sidebarColor,
+            pageBgColor: response.pageBgColor,
+            logoUrl: response.logoUrl ?? '',
+            faviconUrl: response.faviconUrl ?? '',
+            language: response.language,
+            timeZone: response.timeZone,
+            currency: response.currency,
+          });
+        }
+      } catch (loadError) {
+        if (isActive) {
+          setError(describeError(loadError, 'Unable to load settings right now.'));
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadSettings();
+
+    return () => {
+      isActive = false;
+    };
+  }, [session]);
+
+  const previewStyles = useMemo(
+    () => ({
+      backgroundColor: formData.pageBgColor,
+      borderColor: formData.sidebarColor,
+      color: formData.sidebarColor,
+    }),
+    [formData.pageBgColor, formData.sidebarColor],
+  );
+
   const handleChange = (
-    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
-    const { name, value } = e.target;
-    setSettings((prev) => ({ ...prev, [name]: value }));
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
 
-    // --- WORKING FEATURE: Live Colour Change ---
-    // (Yeh sirf demo ke liye hai, save karne par hi permanent hona chahiye)
-    if (name === 'sidebarColor') {
-      document.documentElement.style.setProperty('--color-sidebar-bg', value);
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!session?.token) {
+      return;
     }
-    if (name === 'pageBgColor') {
-      document.documentElement.style.setProperty('--color-page-bg', value);
+
+    setIsSaving(true);
+    setError('');
+
+    try {
+      const updatedSettings = await apiRequest<AppSettingRecord>(
+        '/settings',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            appTitle: formData.appTitle.trim(),
+            address: formData.address.trim(),
+            email: formData.email.trim().toLowerCase(),
+            phone: formData.phone.trim(),
+            footerText: formData.footerText.trim(),
+            themeColor: formData.themeColor,
+            sidebarColor: formData.sidebarColor,
+            pageBgColor: formData.pageBgColor,
+            logoUrl: formData.logoUrl.trim() || undefined,
+            faviconUrl: formData.faviconUrl.trim() || undefined,
+            language: formData.language,
+            timeZone: formData.timeZone,
+            currency: formData.currency,
+          }),
+        },
+        session,
+      );
+
+      setSettings(updatedSettings);
+    } catch (submissionError) {
+      setError(describeError(submissionError, 'Unable to save application settings right now.'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Form submit karein
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    console.log('Settings Saved:', settings);
-    alert('Settings saved successfully! (Check console for data)');
-    // Asli app mein, aap yeh settings database mein save karenge
-    // aur CSS variables ko update karenge.
-  };
+  if (!session?.token) {
+    return (
+      <BackendAccessNotice
+        title="Backend-backed admin session required"
+        description="Application settings now persist to MongoDB. Sign in again through the admin portal to manage the live configuration."
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
-      {/* --- Page Header --- */}
-      <div className="flex items-center gap-3">
-        <LuSettings className="h-8 w-8 text-indigo-700" />
-        <h1 className="text-3xl font-bold text-gray-900">Application Settings</h1>
-      </div>
-
-      {/* --- Main Settings Layout --- */}
-      <div className="bg-white rounded-xl shadow-md">
-        {/* --- Header Tab Menu --- */}
-        <div className="border-b border-gray-200">
-          <nav className="flex px-6 -mb-px space-x-8" aria-label="Tabs">
-            <TabButton
-              label="General"
-              icon={LuInfo}
-              isActive={activeTab === 'general'}
-              onClick={() => setActiveTab('general')}
-            />
-            <TabButton
-              label="Branding"
-              icon={LuPalette}
-              isActive={activeTab === 'branding'}
-              onClick={() => setActiveTab('branding')}
-            />
-            <TabButton
-              label="Localization"
-              icon={LuGlobe}
-              isActive={activeTab === 'localization'}
-              onClick={() => setActiveTab('localization')}
-            />
-          </nav>
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-50 text-cyan-600">
+            <LuSettings2 className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-950">Application Settings</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Keep hospital identity, branding, and localization in sync across the live admin workspace.
+            </p>
+          </div>
         </div>
+      </section>
 
-        {/* --- Form Content --- */}
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 space-y-8">
-            {/* General Tab Content */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'general' && (
-                <motion.div
-                  key="general"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <InputGroup
-                    label="Application Title" name="appTitle" value={settings.appTitle}
-                    onChange={handleChange} icon={LuInfo} required
-                  />
-                  <TextAreaGroup
-                    label="Address" name="address" value={settings.address}
-                    onChange={handleChange} icon={LuMapPin}
-                  />
-                  <InputGroup
-                    label="Email Address" name="email" value={settings.email}
-                    onChange={handleChange} icon={LuMail} required type="email"
-                  />
-                  <InputGroup
-                    label="Phone No" name="phone" value={settings.phone}
-                    onChange={handleChange} icon={LuPhone} required
-                  />
-                  <TextAreaGroup
-                    label="Footer Text" name="footerText" value={settings.footerText}
-                    onChange={handleChange} icon={LuFileText}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+      {error ? (
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
 
-            {/* Branding Tab Content */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'branding' && (
-                <motion.div
-                  key="branding"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <CustomFileInput label="Logo" name="logo" />
-                  <CustomFileInput label="Favicon" name="favicon" />
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t">
-                    <InputGroup
-                      label="Theme Color" name="themeColor" value={settings.themeColor}
-                      onChange={handleChange} icon={LuPaintbrush} type="color"
-                    />
-                    <InputGroup
-                      label="Sidebar Background" name="sidebarColor" value={settings.sidebarColor}
-                      onChange={handleChange} icon={LuLayoutGrid} type="color"
-                    />
-                    <InputGroup
-                      label="Page Background" name="pageBgColor" value={settings.pageBgColor}
-                      onChange={handleChange} icon={LuLayoutGrid} type="color"
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6">
+            <nav className="flex gap-6">
+              <TabButton label="General" isActive={activeTab === 'general'} onClick={() => setActiveTab('general')} />
+              <TabButton label="Branding" isActive={activeTab === 'branding'} onClick={() => setActiveTab('branding')} />
+              <TabButton
+                label="Localization"
+                isActive={activeTab === 'localization'}
+                onClick={() => setActiveTab('localization')}
+              />
+            </nav>
+          </div>
 
-            {/* Localization Tab Content */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'localization' && (
-                <motion.div
-                  key="localization"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <InputGroup
-                    label="Language" name="language" value={settings.language}
-                    onChange={handleChange} icon={LuGlobe} type="select"
+          <form onSubmit={handleSubmit} className="p-6">
+            {isLoading ? (
+              <div className="rounded-[1.5rem] border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                Loading settings...
+              </div>
+            ) : null}
+
+            {!isLoading && activeTab === 'general' ? (
+              <div className="space-y-4">
+                <Field label="Application title" icon={LuType}>
+                  <input
+                    type="text"
+                    name="appTitle"
+                    value={formData.appTitle}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    required
+                  />
+                </Field>
+
+                <Field label="Address" icon={LuMapPin}>
+                  <textarea
+                    name="address"
+                    rows={3}
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Email" icon={LuMail}>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+
+                  <Field label="Phone" icon={LuPhone}>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Footer text">
+                  <textarea
+                    name="footerText"
+                    rows={3}
+                    value={formData.footerText}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {!isLoading && activeTab === 'branding' ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Theme color" icon={LuPaintbrush}>
+                    <input
+                      type="color"
+                      name="themeColor"
+                      value={formData.themeColor}
+                      onChange={handleChange}
+                      className="h-12 w-full rounded-2xl border border-slate-200 p-2 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+
+                  <Field label="Sidebar color" icon={LuLayoutGrid}>
+                    <input
+                      type="color"
+                      name="sidebarColor"
+                      value={formData.sidebarColor}
+                      onChange={handleChange}
+                      className="h-12 w-full rounded-2xl border border-slate-200 p-2 outline-none transition focus:border-cyan-400"
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Page background color" icon={LuLayoutGrid}>
+                  <input
+                    type="color"
+                    name="pageBgColor"
+                    value={formData.pageBgColor}
+                    onChange={handleChange}
+                    className="h-12 w-full rounded-2xl border border-slate-200 p-2 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+
+                <Field label="Logo URL" icon={LuImage}>
+                  <input
+                    type="url"
+                    name="logoUrl"
+                    value={formData.logoUrl}
+                    onChange={handleChange}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+
+                <Field label="Favicon URL" icon={LuImage}>
+                  <input
+                    type="url"
+                    name="faviconUrl"
+                    value={formData.faviconUrl}
+                    onChange={handleChange}
+                    placeholder="https://example.com/favicon.png"
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  />
+                </Field>
+              </div>
+            ) : null}
+
+            {!isLoading && activeTab === 'localization' ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Language" icon={LuGlobe}>
+                    <select
+                      name="language"
+                      value={formData.language}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    >
+                      <option value="en">English</option>
+                      <option value="hi">Hindi</option>
+                      <option value="bn">Bangla</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Currency" icon={LuGlobe}>
+                    <select
+                      name="currency"
+                      value={formData.currency}
+                      onChange={handleChange}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                    >
+                      <option value="INR">INR</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <Field label="Time zone" icon={LuClock3}>
+                  <select
+                    name="timeZone"
+                    value={formData.timeZone}
+                    onChange={handleChange}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
                   >
-                    <option value="en">English (en)</option>
-                    <option value="es">Español (es)</option>
-                    <option value="hi">हिन्दी (hi)</option>
-                    <option value="ar">العربية (ar)</option>
-                  </InputGroup>
-                  <InputGroup
-                    label="Time Zone" name="timeZone" value={settings.timeZone}
-                    onChange={handleChange} icon={LuClock} type="select"
-                  >
-                    <option value="Asia/Dhaka">Asia/Dhaka</option>
+                    <option value="Asia/Calcutta">Asia/Calcutta</option>
                     <option value="Asia/Kolkata">Asia/Kolkata</option>
                     <option value="Etc/UTC">UTC</option>
-                    <option value="America/New_York">America/New_York (EST)</option>
-                  </InputGroup>
-                  <InputGroup
-                    label="Currency" name="currency" value={settings.currency}
-                    onChange={handleChange} icon={LuDollarSign} type="select"
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="INR">INR (₹)</option>
-                    <option value="BDT">BDT (৳)</option>
-                    <option value="EUR">EUR (€)</option>
-                  </InputGroup>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <option value="America/New_York">America/New_York</option>
+                  </select>
+                </Field>
+              </div>
+            ) : null}
 
-          {/* --- Form Save Button --- */}
-          <div className="bg-gray-50 px-6 py-4 rounded-b-xl flex justify-end">
             <button
               type="submit"
-              className="flex items-center gap-2 px-6 py-3 font-semibold text-white 
-                         bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none 
-                         focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+              disabled={isSaving || isLoading}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              <LuSave className="w-5 h-5" />
-              Save All Settings
+              <LuSave className="h-4 w-4" />
+              {isSaving ? 'Saving settings...' : 'Save settings'}
             </button>
-          </div>
-        </form>
+          </form>
+        </section>
+
+        <aside className="space-y-6">
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Live preview</h2>
+            <div
+              className="mt-4 overflow-hidden rounded-[1.5rem] border"
+              style={previewStyles}
+            >
+              <div className="px-4 py-3" style={{ backgroundColor: formData.sidebarColor, color: '#fff' }}>
+                {formData.appTitle || 'Hospi Command Center'}
+              </div>
+              <div className="space-y-3 p-4 text-sm">
+                <div
+                  className="rounded-2xl px-4 py-3 text-white"
+                  style={{ backgroundColor: formData.themeColor }}
+                >
+                  Admin card preview
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-600">
+                  {formData.footerText || 'Footer text preview'}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-950">Saved metadata</h2>
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <p>Last updated: {settings ? new Date(settings.updatedAt).toLocaleString('en-IN') : 'Not available'}</p>
+              <p>Updated by: {settings?.updatedBy?.name || 'System default'}</p>
+              <p>Current locale: {formData.language.toUpperCase()} · {formData.currency}</p>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );
 }
 
-/**
- * ==========================================
- * Helper: Tab Button Component
- * ==========================================
- */
-const TabButton = ({
+function TabButton({
   label,
-  icon: Icon,
   isActive,
   onClick,
 }: {
   label: string;
-  icon: React.ElementType;
   isActive: boolean;
   onClick: () => void;
-}) => {
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 px-1 py-4 border-b-2 font-medium text-sm
-                  transition-colors
-        ${
-          isActive
-            ? 'border-indigo-600 text-indigo-600'
-            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-        }`}
+      className={`border-b-2 px-1 py-4 text-sm font-semibold transition ${
+        isActive ? 'border-cyan-500 text-cyan-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+      }`}
     >
-      <Icon className="w-5 h-5" />
       {label}
     </button>
   );
-};
+}
 
-/**
- * ==========================================
- * Helper: Form Input Components
- * ==========================================
- */
-
-const InputGroup = ({
+function Field({
   label,
-  name,
-  value,
-  onChange,
   icon: Icon,
-  type = 'text',
-  required = false,
   children,
 }: {
   label: string;
-  name: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  icon: React.ElementType;
-  type?: string;
-  required?: boolean;
-  children?: React.ReactNode;
-}) => (
-  <div>
-    <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <div className="relative mt-2">
-      <span className="absolute left-3 top-3.5 text-gray-400 z-10">
-        <Icon className="w-5 h-5" />
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+        {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
+        {label}
       </span>
-      {type === 'select' ? (
-        <select
-          name={name}
-          id={name}
-          value={value}
-          onChange={onChange}
-          required={required}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg appearance-none
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          {children}
-        </select>
-      ) : (
-        <input
-          type={type}
-          name={name}
-          id={name}
-          value={value}
-          onChange={onChange}
-          required={required}
-          className={`w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500
-                     ${type === 'color' ? 'h-12 p-1' : ''}`}
-        />
-      )}
-    </div>
-  </div>
-);
-
-const TextAreaGroup = ({
-  label,
-  name,
-  value,
-  onChange,
-  icon: Icon,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
-  icon: React.ElementType;
-}) => (
-  <div>
-    <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-      {label}
+      {children}
     </label>
-    <div className="relative mt-2">
-      <span className="absolute left-3 top-3.5 text-gray-400">
-        <Icon className="w-5 h-5" />
-      </span>
-      <textarea
-        name={name}
-        id={name}
-        rows={3}
-        value={value}
-        onChange={onChange}
-        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg 
-                   focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      ></textarea>
-    </div>
-  </div>
-);
-
-const CustomFileInput = ({ label, name }: { label: string; name: string }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700">{label}</label>
-    <div className="mt-2 flex items-center gap-4">
-      <img
-        src="https://via.placeholder.com/150/EEEEEE/999999?text=Preview"
-        alt={label}
-        className="w-16 h-16 rounded-lg object-cover bg-gray-100"
-      />
-      <label
-        htmlFor={name}
-        className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 
-                   hover:text-indigo-500"
-      >
-        <span className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg">
-          <LuUpload className="w-5 h-5" />
-          Choose File
-        </span>
-        <input id={name} name={name} type="file" className="sr-only" />
-      </label>
-    </div>
-  </div>
-);
+  );
+}
