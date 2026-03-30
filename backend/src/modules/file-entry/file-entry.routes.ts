@@ -5,6 +5,7 @@ import { validateRequest } from '../../middlewares/validate-request.js';
 import {
   createFolderHandler,
   deleteFileEntryHandler,
+  getFileContentHandler,
   getFileEntriesHandler,
   uploadFileHandler,
 } from './file-entry.controller.js';
@@ -12,7 +13,8 @@ import { createFolderSchema } from './file-entry.validation.js';
 
 const router = Router();
 
-router.get('/', auth('admin'), getFileEntriesHandler);
+router.get('/', auth('admin', 'doctor', 'patient'), getFileEntriesHandler);
+router.get('/:id/content', auth('admin', 'doctor', 'patient'), getFileContentHandler);
 router.post('/folders', auth('admin'), validateRequest(createFolderSchema), createFolderHandler);
 router.post('/upload', auth('admin'), upload.single('file'), uploadFileHandler);
 router.delete('/:id', auth('admin'), deleteFileEntryHandler);

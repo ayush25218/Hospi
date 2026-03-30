@@ -1,10 +1,20 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { sendResponse } from '../../utils/api-response.js';
+import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createNotice, deleteNotice, getNotices, updateNotice } from './notice.service.js';
 
 export const createNoticeHandler = asyncHandler(async (req: Request, res: Response) => {
   const notice = await createNotice(req.body, req.user!.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'notice.created',
+    entityType: 'notice',
+    entityId: notice.id,
+    summary: `Created notice ${notice.title}`,
+  });
 
   sendResponse({
     res,
@@ -27,6 +37,15 @@ export const getNoticesHandler = asyncHandler(async (_req: Request, res: Respons
 export const updateNoticeHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   const notice = await updateNotice(req.params.id, req.body);
 
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'notice.updated',
+    entityType: 'notice',
+    entityId: notice.id,
+    summary: `Updated notice ${notice.title}`,
+  });
+
   sendResponse({
     res,
     message: 'Notice updated successfully',
@@ -36,6 +55,15 @@ export const updateNoticeHandler = asyncHandler(async (req: Request<{ id: string
 
 export const deleteNoticeHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   await deleteNotice(req.params.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'notice.deleted',
+    entityType: 'notice',
+    entityId: req.params.id,
+    summary: 'Deleted notice entry',
+  });
 
   sendResponse({
     res,

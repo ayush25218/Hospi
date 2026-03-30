@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { sendResponse } from '../../utils/api-response.js';
+import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import {
   createDepartment,
   deleteDepartment,
@@ -10,6 +11,15 @@ import {
 
 export const createDepartmentHandler = asyncHandler(async (req: Request, res: Response) => {
   const department = await createDepartment(req.body, req.user!.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'department.created',
+    entityType: 'department',
+    entityId: department._id?.toString(),
+    summary: `Created department ${department.name}`,
+  });
 
   sendResponse({
     res,
@@ -32,6 +42,15 @@ export const getDepartmentsHandler = asyncHandler(async (_req: Request, res: Res
 export const updateDepartmentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   const department = await updateDepartment(req.params.id, req.body);
 
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'department.updated',
+    entityType: 'department',
+    entityId: department._id?.toString(),
+    summary: `Updated department ${department.name}`,
+  });
+
   sendResponse({
     res,
     message: 'Department updated successfully',
@@ -41,6 +60,15 @@ export const updateDepartmentHandler = asyncHandler(async (req: Request<{ id: st
 
 export const deleteDepartmentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   await deleteDepartment(req.params.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'department.deleted',
+    entityType: 'department',
+    entityId: req.params.id,
+    summary: 'Deleted department entry',
+  });
 
   sendResponse({
     res,

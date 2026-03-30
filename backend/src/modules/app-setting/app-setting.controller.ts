@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { sendResponse } from '../../utils/api-response.js';
+import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { getAppSettings, updateAppSettings } from './app-setting.service.js';
 
 export const getAppSettingsHandler = asyncHandler(async (_req: Request, res: Response) => {
@@ -15,6 +16,15 @@ export const getAppSettingsHandler = asyncHandler(async (_req: Request, res: Res
 
 export const updateAppSettingsHandler = asyncHandler(async (req: Request, res: Response) => {
   const settings = await updateAppSettings(req.body, req.user!.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'settings.updated',
+    entityType: 'app-setting',
+    entityId: settings.id,
+    summary: 'Updated application settings',
+  });
 
   sendResponse({
     res,

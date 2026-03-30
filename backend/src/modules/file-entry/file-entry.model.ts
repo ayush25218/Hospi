@@ -42,6 +42,11 @@ const fileEntrySchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'FileEntry',
     },
+    visibility: {
+      type: String,
+      enum: ['admin', 'doctor', 'patient', 'clinical', 'authenticated'],
+      default: 'admin',
+    },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',

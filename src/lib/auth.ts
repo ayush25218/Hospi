@@ -45,8 +45,8 @@ export const ROLE_META: Record<UserRole, RoleMeta> = {
     loginPath: '/login/doctorlogin',
     redirectPath: '/doctor-portal',
     credentials: {
-      email: 'doctor@hospi.com',
-      password: 'doctor123',
+      email: '',
+      password: '',
     },
   },
   patient: {
@@ -56,8 +56,8 @@ export const ROLE_META: Record<UserRole, RoleMeta> = {
     loginPath: '/login/patientlogin',
     redirectPath: '/patientfolder/dashboard',
     credentials: {
-      email: 'patient@hospi.com',
-      password: 'patient123',
+      email: '',
+      password: '',
     },
   },
 };

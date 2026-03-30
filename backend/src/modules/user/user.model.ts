@@ -40,6 +40,14 @@ const userSchema = new Schema(
       minlength: 8,
       select: false,
     },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      select: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -50,7 +58,16 @@ const userSchema = new Schema(
     versionKey: false,
     toJSON: {
       transform: (_doc, ret) => {
-        const { password: _password, ...serialized } = ret as typeof ret & { password?: string };
+        const {
+          password: _password,
+          passwordResetTokenHash: _passwordResetTokenHash,
+          passwordResetExpiresAt: _passwordResetExpiresAt,
+          ...serialized
+        } = ret as typeof ret & {
+          password?: string;
+          passwordResetTokenHash?: string;
+          passwordResetExpiresAt?: string;
+        };
         return serialized;
       },
     },

@@ -18,24 +18,29 @@ import { useSession } from '@/hooks/use-session';
 import {
   apiRequest,
   describeError,
+  formatDateTime,
   formatBytes,
   formatDate,
-  getBackendOrigin,
+  getApiBaseUrl,
   type FileEntryKind,
   type FileEntryRecord,
   type FileEntryType,
+  type FileEntryVisibility,
 } from '@/lib/api-client';
 
 export default function FilesPage() {
   const session = useSession();
   const [entries, setEntries] = useState<FileEntryRecord[]>([]);
   const [folderName, setFolderName] = useState('');
+  const [folderVisibility, setFolderVisibility] = useState<FileEntryVisibility>('admin');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileVisibility, setFileVisibility] = useState<FileEntryVisibility>('admin');
   const [searchTerm, setSearchTerm] = useState('');
   const [kindFilter, setKindFilter] = useState<'all' | FileEntryKind>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [openingEntryId, setOpeningEntryId] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -122,6 +127,7 @@ export default function FilesPage() {
           method: 'POST',
           body: JSON.stringify({
             name: folderName.trim(),
+            visibility: folderVisibility,
           }),
         },
         session,
@@ -129,6 +135,7 @@ export default function FilesPage() {
 
       setEntries((current) => [createdFolder, ...current]);
       setFolderName('');
+      setFolderVisibility('admin');
     } catch (creationError) {
       setError(describeError(creationError, 'Unable to create this folder right now.'));
     } finally {
@@ -151,6 +158,7 @@ export default function FilesPage() {
 
     const body = new FormData();
     body.append('file', selectedFile);
+    body.append('visibility', fileVisibility);
 
     setIsUploading(true);
     setError('');
@@ -167,6 +175,7 @@ export default function FilesPage() {
 
       setEntries((current) => [uploadedFile, ...current]);
       setSelectedFile(null);
+      setFileVisibility('admin');
       const fileInput = document.getElementById('file-upload-input') as HTMLInputElement | null;
 
       if (fileInput) {
@@ -202,6 +211,44 @@ export default function FilesPage() {
       setEntries((current) => current.filter((entry) => entry._id !== entryId));
     } catch (deleteError) {
       setError(describeError(deleteError, 'Unable to delete this file entry right now.'));
+    }
+  };
+
+  const handleOpen = async (entry: FileEntryRecord) => {
+    if (!session?.token) {
+      return;
+    }
+
+    setOpeningEntryId(entry._id);
+    setError('');
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/files/${entry._id}/content`, {
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to open ${entry.name}.`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const openedWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+
+      if (!openedWindow) {
+        window.location.href = objectUrl;
+      }
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(objectUrl);
+      }, 60_000);
+    } catch (openError) {
+      setError(describeError(openError, 'Unable to open this file right now.'));
+    } finally {
+      setOpeningEntryId('');
     }
   };
 
@@ -257,6 +304,21 @@ export default function FilesPage() {
                 />
               </label>
 
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Visibility</span>
+                <select
+                  value={folderVisibility}
+                  onChange={(event) => setFolderVisibility(event.target.value as FileEntryVisibility)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <button
                 type="submit"
                 disabled={isCreatingFolder}
@@ -284,6 +346,21 @@ export default function FilesPage() {
                   className="block w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-50 file:px-4 file:py-2 file:font-semibold file:text-cyan-700"
                   required
                 />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 text-sm font-medium text-slate-700">Visibility</span>
+                <select
+                  value={fileVisibility}
+                  onChange={(event) => setFileVisibility(event.target.value as FileEntryVisibility)}
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               {selectedFile ? (
@@ -374,19 +451,21 @@ export default function FilesPage() {
                     <p>Created on {formatDate(entry.createdAt)}</p>
                     <p>{entry.extension ? `.${entry.extension}` : 'No extension'}</p>
                     <p>{entry.mimeType || 'Folder or unknown file type'}</p>
+                    <p>Visibility: {toVisibilityLabel(entry.visibility)}</p>
+                    <p>Updated: {formatDateTime(entry.updatedAt)}</p>
                   </div>
 
                   <div className="mt-5 flex items-center justify-end gap-2">
-                    {entry.kind === 'file' && entry.publicUrl ? (
-                      <a
-                        href={`${getBackendOrigin()}${entry.publicUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
+                    {entry.kind === 'file' ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpen(entry)}
+                        disabled={openingEntryId === entry._id}
                         className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                       >
                         <LuExternalLink className="h-3.5 w-3.5" />
-                        Open
-                      </a>
+                        {openingEntryId === entry._id ? 'Opening...' : 'Open'}
+                      </button>
                     ) : null}
                     <button
                       type="button"
@@ -442,4 +521,16 @@ function renderIcon(kind: FileEntryKind, fileType: FileEntryType) {
 
 function toLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+const visibilityOptions: Array<{ value: FileEntryVisibility; label: string }> = [
+  { value: 'admin', label: 'Admin only' },
+  { value: 'doctor', label: 'Doctors only' },
+  { value: 'patient', label: 'Patients only' },
+  { value: 'clinical', label: 'Clinical team' },
+  { value: 'authenticated', label: 'Any signed-in user' },
+];
+
+function toVisibilityLabel(value: FileEntryVisibility) {
+  return visibilityOptions.find((option) => option.value === value)?.label ?? value;
 }

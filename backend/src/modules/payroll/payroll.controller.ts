@@ -1,10 +1,20 @@
 import type { Request, Response } from 'express';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { sendResponse } from '../../utils/api-response.js';
+import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createPayroll, deletePayroll, getPayrolls, updatePayroll } from './payroll.service.js';
 
 export const createPayrollHandler = asyncHandler(async (req: Request, res: Response) => {
   const payroll = await createPayroll(req.body, req.user!.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'payroll.created',
+    entityType: 'payroll',
+    entityId: payroll.id,
+    summary: `Created payroll ${payroll.payrollNumber}`,
+  });
 
   sendResponse({
     res,
@@ -27,6 +37,15 @@ export const getPayrollsHandler = asyncHandler(async (_req: Request, res: Respon
 export const updatePayrollHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   const payroll = await updatePayroll(req.params.id, req.body);
 
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'payroll.updated',
+    entityType: 'payroll',
+    entityId: payroll.id,
+    summary: `Updated payroll ${payroll.payrollNumber} to ${payroll.status}`,
+  });
+
   sendResponse({
     res,
     message: 'Payroll record updated successfully',
@@ -36,6 +55,15 @@ export const updatePayrollHandler = asyncHandler(async (req: Request<{ id: strin
 
 export const deletePayrollHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
   await deletePayroll(req.params.id);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'payroll.deleted',
+    entityType: 'payroll',
+    entityId: req.params.id,
+    summary: 'Deleted payroll entry',
+  });
 
   sendResponse({
     res,

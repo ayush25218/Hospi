@@ -11,11 +11,16 @@ export async function createFolder(payload: CreateFolderPayload, createdBy: stri
   return FileEntryModel.create({
     kind: 'folder',
     name: payload.name,
+    visibility: payload.visibility ?? 'admin',
     createdBy,
   });
 }
 
-export async function uploadFile(file: Express.Multer.File, createdBy: string) {
+export async function uploadFile(
+  file: Express.Multer.File,
+  createdBy: string,
+  visibility: 'admin' | 'doctor' | 'patient' | 'clinical' | 'authenticated' = 'admin',
+) {
   if (!file) {
     throw new AppError('File is required', 400);
   }
@@ -28,13 +33,41 @@ export async function uploadFile(file: Express.Multer.File, createdBy: string) {
     mimeType: file.mimetype,
     extension: path.extname(file.originalname).replace('.', '').toLowerCase(),
     storagePath: file.path,
-    publicUrl: `/uploads/${path.basename(file.path)}`,
+    visibility,
     createdBy,
   });
 }
 
-export async function getFileEntries() {
-  return FileEntryModel.find().populate('createdBy', '-password').sort({ kind: 1, createdAt: -1 });
+export async function getFileEntries(
+  actorRole: 'admin' | 'doctor' | 'patient',
+) {
+  const query =
+    actorRole === 'admin'
+      ? {}
+      : {
+          visibility: {
+            $in:
+              actorRole === 'doctor'
+                ? ['doctor', 'clinical', 'authenticated']
+                : ['patient', 'authenticated'],
+          },
+        };
+
+  return FileEntryModel.find(query).populate('createdBy', '-password').sort({ kind: 1, createdAt: -1 });
+}
+
+export async function getFileEntryContent(fileEntryId: string, actorRole: 'admin' | 'doctor' | 'patient') {
+  const fileEntry = await FileEntryModel.findById(fileEntryId);
+
+  if (!fileEntry || fileEntry.kind !== 'file' || !fileEntry.storagePath) {
+    throw new AppError('File not found', 404);
+  }
+
+  if (!canAccessFileEntry(fileEntry.visibility ?? 'admin', actorRole)) {
+    throw new AppError('You are not allowed to access this file', 403);
+  }
+
+  return fileEntry;
 }
 
 export async function deleteFileEntry(fileEntryId: string) {
@@ -73,4 +106,23 @@ function resolveFileType(mimeType: string, fileName: string) {
   }
 
   return 'other';
+}
+
+function canAccessFileEntry(
+  visibility: 'admin' | 'doctor' | 'patient' | 'clinical' | 'authenticated',
+  actorRole: 'admin' | 'doctor' | 'patient',
+) {
+  if (actorRole === 'admin') {
+    return true;
+  }
+
+  if (visibility === 'authenticated') {
+    return true;
+  }
+
+  if (visibility === 'clinical') {
+    return actorRole === 'doctor';
+  }
+
+  return visibility === actorRole;
 }

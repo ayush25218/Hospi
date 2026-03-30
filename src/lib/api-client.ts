@@ -138,12 +138,14 @@ export type ExpenseRecord = {
 
 export type FileEntryKind = 'folder' | 'file';
 export type FileEntryType = 'pdf' | 'image' | 'doc' | 'other';
+export type FileEntryVisibility = 'admin' | 'doctor' | 'patient' | 'clinical' | 'authenticated';
 
 export type FileEntryRecord = {
   _id: string;
   kind: FileEntryKind;
   name: string;
   fileType: FileEntryType;
+  visibility: FileEntryVisibility;
   sizeBytes: number;
   mimeType?: string;
   extension?: string;
@@ -299,6 +301,29 @@ export type AppSettingRecord = {
   logoUrl?: string;
   faviconUrl?: string;
   updatedBy?: BackendUser | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AuditLogRecord = {
+  _id: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  summary: string;
+  metadata?: Record<string, unknown>;
+  actor?: {
+    userId?: string;
+    role?: string;
+    email?: string;
+    name?: string;
+  };
+  requestContext?: {
+    ipAddress?: string;
+    userAgent?: string;
+    method?: string;
+    path?: string;
+  };
   createdAt: string;
   updatedAt: string;
 };

@@ -3,6 +3,7 @@ import { getDatabaseStatus } from '../db/connect-database.js';
 import { appSettingRoutes } from '../modules/app-setting/app-setting.routes.js';
 import { appointmentRoutes } from '../modules/appointment/appointment.routes.js';
 import { authRoutes } from '../modules/auth/auth.routes.js';
+import { auditLogRoutes } from '../modules/audit-log/audit-log.routes.js';
 import { contactRoutes } from '../modules/contact/contact.routes.js';
 import { departmentRoutes } from '../modules/department/department.routes.js';
 import { doctorRoutes } from '../modules/doctor/doctor.routes.js';
@@ -33,6 +34,7 @@ router.get('/health', (_req, res) => {
 });
 
 router.use('/settings', appSettingRoutes);
+router.use('/audit-logs', auditLogRoutes);
 router.use('/auth', authRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/departments', departmentRoutes);

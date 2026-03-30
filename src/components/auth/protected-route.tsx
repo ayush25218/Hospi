@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getRoleMeta, type UserRole } from '@/lib/auth';
+import { clearSession, getRoleMeta, type UserRole } from '@/lib/auth';
 import { useSession } from '@/hooks/use-session';
 
 type ProtectedRouteProps = {
@@ -15,7 +15,11 @@ export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
   const session = useSession();
 
   useEffect(() => {
-    if (!session) {
+    if (!session || !session.token) {
+      if (session && !session.token) {
+        clearSession();
+      }
+
       router.replace(getRoleMeta(role).loginPath);
       return;
     }
@@ -25,7 +29,7 @@ export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
     }
   }, [role, router, session]);
 
-  if (!session || session.role !== role) {
+  if (!session || !session.token || session.role !== role) {
     return (
       <div className="grid min-h-screen place-items-center bg-slate-950 px-6 text-center text-white">
         <div className="space-y-3">

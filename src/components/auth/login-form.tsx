@@ -4,7 +4,7 @@ import { startTransition, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LuArrowLeft, LuCircleCheck, LuLock, LuMail, LuShieldEllipsis } from 'react-icons/lu';
-import { buildSessionName, getRoleMeta, writeSession, type UserRole } from '@/lib/auth';
+import { getRoleMeta, writeSession, type UserRole } from '@/lib/auth';
 import { apiRequest, describeError, type AuthResponse } from '@/lib/api-client';
 
 const roleStyles: Record<UserRole, { glow: string; badge: string; button: string }> = {
@@ -29,9 +29,10 @@ export function LoginForm({ role }: { role: UserRole }) {
   const router = useRouter();
   const roleMeta = getRoleMeta(role);
   const styles = roleStyles[role];
+  const isAdminRole = role === 'admin';
 
-  const [email, setEmail] = useState(roleMeta.credentials.email);
-  const [password, setPassword] = useState(roleMeta.credentials.password);
+  const [email, setEmail] = useState(isAdminRole ? roleMeta.credentials.email : '');
+  const [password, setPassword] = useState(isAdminRole ? roleMeta.credentials.password : '');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -70,23 +71,6 @@ export function LoginForm({ role }: { role: UserRole }) {
       });
       return;
     } catch (submissionError) {
-      const isDemoMatch =
-        email.trim().toLowerCase() === roleMeta.credentials.email && password === roleMeta.credentials.password;
-
-      if (role !== 'admin' && isDemoMatch) {
-        writeSession({
-          role,
-          email: roleMeta.credentials.email,
-          name: buildSessionName(email, role),
-          source: 'demo',
-        });
-
-        startTransition(() => {
-          router.replace(roleMeta.redirectPath);
-        });
-        return;
-      }
-
       setError(describeError(submissionError, 'Unable to sign you in right now.'));
     } finally {
       setIsSubmitting(false);
@@ -132,7 +116,7 @@ export function LoginForm({ role }: { role: UserRole }) {
             {[
               'Role-based workspace routing',
               'Cleaner shell and navigation',
-              'Demo credentials for instant preview',
+              'Backend-authenticated access',
             ].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="mb-3 inline-flex rounded-full bg-white/10 p-2">
@@ -150,18 +134,29 @@ export function LoginForm({ role }: { role: UserRole }) {
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Hospi sign in</p>
               <h2 className="mt-2 text-3xl font-semibold text-slate-950">{roleMeta.shortLabel} Login</h2>
               <p className="mt-2 text-sm text-slate-500">
-                Admin login uses the Express backend. Doctor and patient portals can still fall back to demo access.
+                All role logins now use the Express backend, so each portal opens only with a real account and token.
               </p>
             </div>
 
             <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">Demo credentials</p>
-              <p className="mt-2">
-                Email: <span className="font-medium text-slate-900">{roleMeta.credentials.email}</span>
-              </p>
-              <p className="mt-1">
-                Password: <span className="font-medium text-slate-900">{roleMeta.credentials.password}</span>
-              </p>
+              {isAdminRole ? (
+                <>
+                  <p className="font-semibold text-slate-900">Starter admin account</p>
+                  <p className="mt-2">
+                    Email: <span className="font-medium text-slate-900">{roleMeta.credentials.email}</span>
+                  </p>
+                  <p className="mt-1">
+                    Password: <span className="font-medium text-slate-900">{roleMeta.credentials.password}</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold text-slate-900">Account required</p>
+                  <p className="mt-2">
+                    Use the email and password created by the admin from the live hospital system.
+                  </p>
+                </>
+              )}
             </div>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
@@ -194,6 +189,15 @@ export function LoginForm({ role }: { role: UserRole }) {
                   />
                 </div>
               </label>
+
+              <div className="flex justify-end">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
+                >
+                  Forgot password?
+                </Link>
+              </div>
 
               {error ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

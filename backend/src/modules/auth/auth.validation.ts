@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { userRoles } from '../user/user.model.js';
+
+const managedUserRoles = ['doctor', 'patient'] as const;
 
 export const registerSchema = z.object({
   body: z.object({
@@ -7,13 +8,26 @@ export const registerSchema = z.object({
     email: z.email().transform((value) => value.toLowerCase()),
     phone: z.string().trim().optional(),
     password: z.string().min(8),
-    role: z.enum(userRoles),
+    role: z.enum(managedUserRoles),
   }),
 });
 
 export const loginSchema = z.object({
   body: z.object({
     email: z.email().transform((value) => value.toLowerCase()),
+    password: z.string().min(8),
+  }),
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.email().transform((value) => value.toLowerCase()),
+  }),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    token: z.string().min(20),
     password: z.string().min(8),
   }),
 });

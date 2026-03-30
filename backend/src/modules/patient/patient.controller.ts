@@ -1,10 +1,20 @@
 import type { Request, Response } from 'express';
 import { sendResponse } from '../../utils/api-response.js';
 import { asyncHandler } from '../../utils/async-handler.js';
+import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createPatient, getPatientByUserId, getPatients } from './patient.service.js';
 
 export const createPatientHandler = asyncHandler(async (req: Request, res: Response) => {
   const patient = await createPatient(req.body);
+
+  await recordAuditEvent({
+    req,
+    actor: req.user,
+    action: 'patient.created',
+    entityType: 'patient',
+    entityId: patient?.id ?? patient?._id?.toString(),
+    summary: 'Created patient profile',
+  });
 
   sendResponse({
     res,

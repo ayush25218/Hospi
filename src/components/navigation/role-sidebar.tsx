@@ -72,7 +72,7 @@ export function RoleSidebar({
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
             <p className="text-sm font-semibold">{session?.name ?? roleMeta.label}</p>
-            <p className="mt-1 text-sm text-white/60">{session?.email ?? roleMeta.credentials.email}</p>
+            <p className="mt-1 text-sm text-white/60">{session?.email ?? `${roleMeta.shortLabel} account`}</p>
           </div>
         </div>
 

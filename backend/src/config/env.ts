@@ -14,6 +14,8 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   JWT_SECRET: z.string().min(12).default('change-this-super-secret-key'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  APP_BASE_URL: z.string().default('http://localhost:3000'),
+  PASSWORD_RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(240).default(30),
   BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(8).max(14).default(10),
   ADMIN_NAME: z.string().min(2).default('Hospi Admin'),
   ADMIN_EMAIL: z.email().default('admin@hospi.com'),
