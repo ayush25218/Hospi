@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createDoctor, getDoctorByUserId, getDoctors } from './doctor.service.js';
 
 export const createDoctorHandler = asyncHandler(async (req: Request, res: Response) => {
-  const doctor = await createDoctor(req.body);
+  const doctor = await createDoctor(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createDoctorHandler = asyncHandler(async (req: Request, res: Respon
 });
 
 export const getDoctorsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const doctors = await getDoctors();
+  const doctors = await getDoctors(_req.user!);
 
   sendResponse({
     res,

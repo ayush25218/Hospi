@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { getAppSettings, updateAppSettings } from './app-setting.service.js';
 
 export const getAppSettingsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const settings = await getAppSettings();
+  const settings = await getAppSettings(_req.user!);
 
   sendResponse({
     res,
@@ -15,7 +15,7 @@ export const getAppSettingsHandler = asyncHandler(async (_req: Request, res: Res
 });
 
 export const updateAppSettingsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const settings = await updateAppSettings(req.body, req.user!.id);
+  const settings = await updateAppSettings(req.body, req.user!);
 
   await recordAuditEvent({
     req,

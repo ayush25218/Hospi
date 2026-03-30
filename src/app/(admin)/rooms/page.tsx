@@ -658,8 +658,8 @@ export default function RoomsPage() {
 
         <section className="space-y-6">
           <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_180px]">
-              <label className="block">
+            <div className="space-y-4">
+              <label className="block min-w-0">
                 <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
                   <LuSearch className="h-4 w-4 text-slate-400" />
                   Search rooms
@@ -669,35 +669,37 @@ export default function RoomsPage() {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Room, patient, doctor, or type"
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+                  className="w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
                 />
               </label>
 
-              <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
-                <option value="all">All statuses</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="cleaning">Cleaning</option>
-                <option value="maintenance">Maintenance</option>
-              </FilterSelect>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
+                  <option value="all">All statuses</option>
+                  <option value="available">Available</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="cleaning">Cleaning</option>
+                  <option value="maintenance">Maintenance</option>
+                </FilterSelect>
 
-              <FilterSelect label="Type" value={typeFilter} onChange={setTypeFilter}>
-                <option value="all">All types</option>
-                {roomTypes.map((roomType) => (
-                  <option key={roomType} value={roomType}>
-                    {roomType}
-                  </option>
-                ))}
-              </FilterSelect>
+                <FilterSelect label="Type" value={typeFilter} onChange={setTypeFilter}>
+                  <option value="all">All types</option>
+                  {roomTypes.map((roomType) => (
+                    <option key={roomType} value={roomType}>
+                      {roomType}
+                    </option>
+                  ))}
+                </FilterSelect>
 
-              <FilterSelect label="Floor" value={floorFilter} onChange={setFloorFilter}>
-                <option value="all">All floors</option>
-                {floors.map((floor) => (
-                  <option key={floor} value={floor}>
-                    {floor}
-                  </option>
-                ))}
-              </FilterSelect>
+                <FilterSelect label="Floor" value={floorFilter} onChange={setFloorFilter}>
+                  <option value="all">All floors</option>
+                  {floors.map((floor) => (
+                    <option key={floor} value={floor}>
+                      {floor}
+                    </option>
+                  ))}
+                </FilterSelect>
+              </div>
             </div>
           </div>
 
@@ -799,7 +801,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
         {Icon ? <Icon className="h-4 w-4 text-slate-400" /> : null}
         {label}
@@ -821,12 +823,12 @@ function FilterSelect<T extends string>({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="mb-2 block text-sm font-medium text-slate-700">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as T)}
-        className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+        className="w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
       >
         {children}
       </select>

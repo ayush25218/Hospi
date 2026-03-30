@@ -13,8 +13,8 @@ import { createFolderSchema } from './file-entry.validation.js';
 
 const router = Router();
 
-router.get('/', auth('admin', 'doctor', 'patient'), getFileEntriesHandler);
-router.get('/:id/content', auth('admin', 'doctor', 'patient'), getFileContentHandler);
+router.get('/', auth('admin'), getFileEntriesHandler);
+router.get('/:id/content', auth('admin'), getFileContentHandler);
 router.post('/folders', auth('admin'), validateRequest(createFolderSchema), createFolderHandler);
 router.post('/upload', auth('admin'), upload.single('file'), uploadFileHandler);
 router.delete('/:id', auth('admin'), deleteFileEntryHandler);

@@ -17,6 +17,12 @@ export type BackendUser = {
   updatedAt: string;
 };
 
+export type BackendOrganization = {
+  _id: string;
+  name: string;
+  slug: string;
+};
+
 export type DoctorRecord = {
   _id: string;
   user: BackendUser;
@@ -331,6 +337,7 @@ export type AuditLogRecord = {
 export type AuthResponse = {
   token: string;
   user: BackendUser;
+  organization: BackendOrganization;
 };
 
 const DEFAULT_API_BASE_URL = 'http://localhost:5000/api/v1';

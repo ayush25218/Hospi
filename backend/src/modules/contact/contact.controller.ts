@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createContact, deleteContact, getContacts, updateContact } from './contact.service.js';
 
 export const createContactHandler = asyncHandler(async (req: Request, res: Response) => {
-  const contact = await createContact(req.body, req.user!.id);
+  const contact = await createContact(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createContactHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getContactsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const contacts = await getContacts();
+  const contacts = await getContacts(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getContactsHandler = asyncHandler(async (_req: Request, res: Respon
 });
 
 export const updateContactHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const contact = await updateContact(req.params.id, req.body);
+  const contact = await updateContact(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -54,7 +54,7 @@ export const updateContactHandler = asyncHandler(async (req: Request<{ id: strin
 });
 
 export const deleteContactHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteContact(req.params.id);
+  await deleteContact(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

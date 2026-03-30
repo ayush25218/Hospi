@@ -21,9 +21,14 @@ const userSchema = new Schema(
     email: {
       type: String,
       required: true,
-      unique: true,
       lowercase: true,
       trim: true,
+    },
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
     },
     phone: {
       type: String,
@@ -73,6 +78,8 @@ const userSchema = new Schema(
     },
   },
 );
+
+userSchema.index({ organization: 1, email: 1 }, { unique: true });
 
 userSchema.pre('save', async function savePassword(next) {
   if (!this.isModified('password')) {

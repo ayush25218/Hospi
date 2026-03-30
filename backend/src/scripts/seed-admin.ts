@@ -1,12 +1,17 @@
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
 import { connectDatabase } from '../db/connect-database.js';
+import { getOrCreateDefaultOrganization } from '../modules/organization/organization.service.js';
 import { UserModel } from '../modules/user/user.model.js';
 
 async function seedAdmin() {
   await connectDatabase();
+  const organization = await getOrCreateDefaultOrganization();
 
-  const existingAdmin = await UserModel.findOne({ email: env.ADMIN_EMAIL });
+  const existingAdmin = await UserModel.findOne({
+    email: env.ADMIN_EMAIL,
+    organization: organization._id,
+  });
 
   if (existingAdmin) {
     if (existingAdmin.role !== 'admin') {
@@ -22,6 +27,7 @@ async function seedAdmin() {
     email: env.ADMIN_EMAIL,
     password: env.ADMIN_PASSWORD,
     role: 'admin',
+    organization: organization._id,
   });
 
   console.log(`Admin created successfully: ${env.ADMIN_EMAIL}`);

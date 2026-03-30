@@ -1,5 +1,7 @@
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import { DoctorModel } from '../doctor/doctor.model.js';
 import { PatientModel } from '../patient/patient.model.js';
 import { InvoiceModel } from './invoice.model.js';
@@ -7,8 +9,9 @@ import type { createInvoiceSchema } from './invoice.validation.js';
 
 type CreateInvoicePayload = z.infer<typeof createInvoiceSchema>['body'];
 
-export async function createInvoice(payload: CreateInvoicePayload, createdBy: string) {
+export async function createInvoice(payload: CreateInvoicePayload, actor: AuthenticatedUser) {
   const { subtotal, taxAmount, totalAmount } = calculateInvoiceTotals(payload.lineItems, payload.discount ?? 0, payload.taxRate ?? 0);
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
 
   const invoiceData = {
     invoiceNumber: buildInvoiceNumber(payload.recipientType),
@@ -27,7 +30,7 @@ export async function createInvoice(payload: CreateInvoicePayload, createdBy: st
     totalAmount,
     status: payload.status ?? 'pending',
     notes: payload.notes,
-    createdBy,
+    createdBy: actor.id,
   } as const;
 
   if (payload.recipientType === 'patient') {
@@ -35,7 +38,10 @@ export async function createInvoice(payload: CreateInvoicePayload, createdBy: st
       throw new AppError('Patient invoice requires a patient', 400);
     }
 
-    const patient = await PatientModel.findById(payload.patientId).populate('user', '-password');
+    const patient = await PatientModel.findOne({
+      _id: payload.patientId,
+      user: { $in: organizationUserIds },
+    }).populate('user', '-password');
 
     if (!patient) {
       throw new AppError('Patient not found', 404);
@@ -48,7 +54,7 @@ export async function createInvoice(payload: CreateInvoicePayload, createdBy: st
       recipientEmail: payload.recipientEmail || String((patient.user as { email?: string })?.email ?? ''),
     });
 
-    return getInvoiceById(invoice.id);
+    return getInvoiceById(invoice.id, actor);
   }
 
   if (payload.recipientType === 'doctor') {
@@ -56,7 +62,10 @@ export async function createInvoice(payload: CreateInvoicePayload, createdBy: st
       throw new AppError('Doctor paystub requires a doctor', 400);
     }
 
-    const doctor = await DoctorModel.findById(payload.doctorId).populate('user', '-password');
+    const doctor = await DoctorModel.findOne({
+      _id: payload.doctorId,
+      user: { $in: organizationUserIds },
+    }).populate('user', '-password');
 
     if (!doctor) {
       throw new AppError('Doctor not found', 404);
@@ -69,31 +78,40 @@ export async function createInvoice(payload: CreateInvoicePayload, createdBy: st
       recipientEmail: payload.recipientEmail || String((doctor.user as { email?: string })?.email ?? ''),
     });
 
-    return getInvoiceById(invoice.id);
+    return getInvoiceById(invoice.id, actor);
   }
 
   const invoice = await InvoiceModel.create(invoiceData);
-  return getInvoiceById(invoice.id);
+  return getInvoiceById(invoice.id, actor);
 }
 
-export async function getInvoices() {
-  return InvoiceModel.find()
+export async function getInvoices(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  return InvoiceModel.find({ createdBy: { $in: organizationUserIds } })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password')
     .sort({ createdAt: -1 });
 }
 
-export async function deleteInvoice(invoiceId: string) {
-  const deletedInvoice = await InvoiceModel.findByIdAndDelete(invoiceId);
+export async function deleteInvoice(invoiceId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const deletedInvoice = await InvoiceModel.findOneAndDelete({
+    _id: invoiceId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!deletedInvoice) {
     throw new AppError('Invoice not found', 404);
   }
 }
 
-async function getInvoiceById(invoiceId: string) {
-  const invoice = await InvoiceModel.findById(invoiceId)
+async function getInvoiceById(invoiceId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const invoice = await InvoiceModel.findOne({
+    _id: invoiceId,
+    createdBy: { $in: organizationUserIds },
+  })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password');

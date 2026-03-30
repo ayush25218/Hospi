@@ -47,7 +47,7 @@ export function AppShell({ role, children }: AppShellProps) {
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 px-4 pt-4 sm:px-6 lg:px-8">
-            <div className="hospi-panel rounded-[1.9rem] px-5 py-5 text-white sm:px-6">
+            <div className="rounded-[1.9rem] border border-cyan-200/12 bg-[linear-gradient(180deg,rgba(9,20,37,0.97),rgba(6,16,30,0.99))] px-5 py-5 text-white shadow-[0_28px_90px_rgba(3,10,21,0.5)] backdrop-blur-[28px] sm:px-6">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
@@ -104,7 +104,7 @@ export function AppShell({ role, children }: AppShellProps) {
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+          <main className="flex-1 px-4 pb-8 pt-7 sm:px-6 sm:pt-8 lg:px-8">
             <div className="mx-auto max-w-[96rem]">{children}</div>
           </main>
         </div>

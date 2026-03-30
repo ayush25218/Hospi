@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createPayment, deletePayment, getPayments, updatePayment } from './payment.service.js';
 
 export const createPaymentHandler = asyncHandler(async (req: Request, res: Response) => {
-  const payment = await createPayment(req.body, req.user!.id);
+  const payment = await createPayment(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createPaymentHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getPaymentsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const payments = await getPayments();
+  const payments = await getPayments(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getPaymentsHandler = asyncHandler(async (_req: Request, res: Respon
 });
 
 export const updatePaymentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const payment = await updatePayment(req.params.id, req.body);
+  const payment = await updatePayment(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -54,7 +54,7 @@ export const updatePaymentHandler = asyncHandler(async (req: Request<{ id: strin
 });
 
 export const deletePaymentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deletePayment(req.params.id);
+  await deletePayment(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

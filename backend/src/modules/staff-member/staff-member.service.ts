@@ -1,5 +1,7 @@
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import type {
   createStaffMemberSchema,
   updateStaffMemberSchema,
@@ -9,7 +11,7 @@ import { StaffMemberModel } from './staff-member.model.js';
 type CreateStaffMemberPayload = z.infer<typeof createStaffMemberSchema>['body'];
 type UpdateStaffMemberPayload = z.infer<typeof updateStaffMemberSchema>['body'];
 
-export async function createStaffMember(payload: CreateStaffMemberPayload, createdBy: string) {
+export async function createStaffMember(payload: CreateStaffMemberPayload, actor: AuthenticatedUser) {
   const staffMember = await StaffMemberModel.create({
     staffId: payload.staffId ?? buildStaffId(),
     name: payload.name,
@@ -21,19 +23,21 @@ export async function createStaffMember(payload: CreateStaffMemberPayload, creat
     joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : new Date(),
     photoUrl: payload.photoUrl,
     notes: payload.notes,
-    createdBy,
+    createdBy: actor.id,
   });
 
-  return getStaffMemberById(staffMember.id);
+  return getStaffMemberById(staffMember.id, actor);
 }
 
-export async function getStaffMembers() {
-  return StaffMemberModel.find().populate('createdBy', '-password').sort({ createdAt: -1 });
+export async function getStaffMembers(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  return StaffMemberModel.find({ createdBy: { $in: organizationUserIds } }).populate('createdBy', '-password').sort({ createdAt: -1 });
 }
 
-export async function updateStaffMember(staffMemberId: string, payload: UpdateStaffMemberPayload) {
-  const staffMember = await StaffMemberModel.findByIdAndUpdate(
-    staffMemberId,
+export async function updateStaffMember(staffMemberId: string, payload: UpdateStaffMemberPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const staffMember = await StaffMemberModel.findOneAndUpdate(
+    { _id: staffMemberId, createdBy: { $in: organizationUserIds } },
     {
       ...(payload.staffId ? { staffId: payload.staffId } : {}),
       ...(payload.name ? { name: payload.name } : {}),
@@ -59,16 +63,24 @@ export async function updateStaffMember(staffMemberId: string, payload: UpdateSt
   return staffMember;
 }
 
-export async function deleteStaffMember(staffMemberId: string) {
-  const deletedStaffMember = await StaffMemberModel.findByIdAndDelete(staffMemberId);
+export async function deleteStaffMember(staffMemberId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const deletedStaffMember = await StaffMemberModel.findOneAndDelete({
+    _id: staffMemberId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!deletedStaffMember) {
     throw new AppError('Staff member not found', 404);
   }
 }
 
-async function getStaffMemberById(staffMemberId: string) {
-  const staffMember = await StaffMemberModel.findById(staffMemberId).populate('createdBy', '-password');
+async function getStaffMemberById(staffMemberId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const staffMember = await StaffMemberModel.findOne({
+    _id: staffMemberId,
+    createdBy: { $in: organizationUserIds },
+  }).populate('createdBy', '-password');
 
   if (!staffMember) {
     throw new AppError('Staff member not found', 404);

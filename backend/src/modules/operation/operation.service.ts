@@ -1,5 +1,7 @@
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import { DoctorModel } from '../doctor/doctor.model.js';
 import { PatientModel } from '../patient/patient.model.js';
 import { OperationModel } from './operation.model.js';
@@ -8,10 +10,15 @@ import type { createOperationSchema, updateOperationStatusSchema } from './opera
 type CreateOperationPayload = z.infer<typeof createOperationSchema>['body'];
 type UpdateOperationStatusPayload = z.infer<typeof updateOperationStatusSchema>['body'];
 
-export async function createOperation(payload: CreateOperationPayload, createdBy: string) {
+export async function createOperation(payload: CreateOperationPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
   const [doctor, patient] = await Promise.all([
-    payload.doctorId ? DoctorModel.findById(payload.doctorId).populate('user', '-password') : Promise.resolve(null),
-    payload.patientId ? PatientModel.findById(payload.patientId).populate('user', '-password') : Promise.resolve(null),
+    payload.doctorId
+      ? DoctorModel.findOne({ _id: payload.doctorId, user: { $in: organizationUserIds } }).populate('user', '-password')
+      : Promise.resolve(null),
+    payload.patientId
+      ? PatientModel.findOne({ _id: payload.patientId, user: { $in: organizationUserIds } }).populate('user', '-password')
+      : Promise.resolve(null),
   ]);
 
   if (payload.doctorId && !doctor) {
@@ -32,23 +39,25 @@ export async function createOperation(payload: CreateOperationPayload, createdBy
     status: payload.status ?? 'pending',
     roomNumber: payload.roomNumber,
     notes: payload.notes,
-    createdBy,
+    createdBy: actor.id,
   });
 
-  return getOperationById(operation.id);
+  return getOperationById(operation.id, actor);
 }
 
-export async function getOperations() {
-  return OperationModel.find()
+export async function getOperations(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  return OperationModel.find({ createdBy: { $in: organizationUserIds } })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password')
     .sort({ scheduledAt: 1, createdAt: -1 });
 }
 
-export async function updateOperationStatus(operationId: string, payload: UpdateOperationStatusPayload) {
-  const operation = await OperationModel.findByIdAndUpdate(
-    operationId,
+export async function updateOperationStatus(operationId: string, payload: UpdateOperationStatusPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const operation = await OperationModel.findOneAndUpdate(
+    { _id: operationId, createdBy: { $in: organizationUserIds } },
     {
       status: payload.status,
     },
@@ -68,16 +77,24 @@ export async function updateOperationStatus(operationId: string, payload: Update
   return operation;
 }
 
-export async function deleteOperation(operationId: string) {
-  const deletedOperation = await OperationModel.findByIdAndDelete(operationId);
+export async function deleteOperation(operationId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const deletedOperation = await OperationModel.findOneAndDelete({
+    _id: operationId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!deletedOperation) {
     throw new AppError('Operation record not found', 404);
   }
 }
 
-async function getOperationById(operationId: string) {
-  const operation = await OperationModel.findById(operationId)
+async function getOperationById(operationId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const operation = await OperationModel.findOne({
+    _id: operationId,
+    createdBy: { $in: organizationUserIds },
+  })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password');

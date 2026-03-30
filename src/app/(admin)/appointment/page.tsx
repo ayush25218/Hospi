@@ -151,7 +151,7 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pt-1 sm:pt-2">
       <section className="hospi-panel overflow-hidden rounded-[2.2rem] px-6 py-8 text-white shadow-[0_28px_90px_rgba(5,12,24,0.42)] sm:px-8 non-printable">
         <div className="grid gap-8 lg:grid-cols-[1.14fr_0.86fr]">
           <div className="space-y-5">

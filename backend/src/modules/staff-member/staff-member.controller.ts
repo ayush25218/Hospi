@@ -10,7 +10,7 @@ import {
 } from './staff-member.service.js';
 
 export const createStaffMemberHandler = asyncHandler(async (req: Request, res: Response) => {
-  const staffMember = await createStaffMember(req.body, req.user!.id);
+  const staffMember = await createStaffMember(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -30,7 +30,7 @@ export const createStaffMemberHandler = asyncHandler(async (req: Request, res: R
 });
 
 export const getStaffMembersHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const staffMembers = await getStaffMembers();
+  const staffMembers = await getStaffMembers(_req.user!);
 
   sendResponse({
     res,
@@ -40,7 +40,7 @@ export const getStaffMembersHandler = asyncHandler(async (_req: Request, res: Re
 });
 
 export const updateStaffMemberHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const staffMember = await updateStaffMember(req.params.id, req.body);
+  const staffMember = await updateStaffMember(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -59,7 +59,7 @@ export const updateStaffMemberHandler = asyncHandler(async (req: Request<{ id: s
 });
 
 export const deleteStaffMemberHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteStaffMember(req.params.id);
+  await deleteStaffMember(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

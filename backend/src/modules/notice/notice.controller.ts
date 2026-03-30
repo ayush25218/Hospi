@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createNotice, deleteNotice, getNotices, updateNotice } from './notice.service.js';
 
 export const createNoticeHandler = asyncHandler(async (req: Request, res: Response) => {
-  const notice = await createNotice(req.body, req.user!.id);
+  const notice = await createNotice(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createNoticeHandler = asyncHandler(async (req: Request, res: Respon
 });
 
 export const getNoticesHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const notices = await getNotices();
+  const notices = await getNotices(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getNoticesHandler = asyncHandler(async (_req: Request, res: Respons
 });
 
 export const updateNoticeHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const notice = await updateNotice(req.params.id, req.body);
+  const notice = await updateNotice(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -54,7 +54,7 @@ export const updateNoticeHandler = asyncHandler(async (req: Request<{ id: string
 });
 
 export const deleteNoticeHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteNotice(req.params.id);
+  await deleteNotice(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

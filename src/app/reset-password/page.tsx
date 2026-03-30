@@ -56,6 +56,9 @@ function ResetPasswordContent() {
         role: result.user.role,
         email: result.user.email,
         name: result.user.name,
+        organizationId: result.organization._id,
+        organizationSlug: result.organization.slug,
+        organizationName: result.organization.name,
         token: result.token,
         source: 'backend',
       });

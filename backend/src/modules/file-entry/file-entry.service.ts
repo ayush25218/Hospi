@@ -1,24 +1,26 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import { FileEntryModel } from './file-entry.model.js';
 import type { createFolderSchema } from './file-entry.validation.js';
 
 type CreateFolderPayload = z.infer<typeof createFolderSchema>['body'];
 
-export async function createFolder(payload: CreateFolderPayload, createdBy: string) {
+export async function createFolder(payload: CreateFolderPayload, actor: AuthenticatedUser) {
   return FileEntryModel.create({
     kind: 'folder',
     name: payload.name,
     visibility: payload.visibility ?? 'admin',
-    createdBy,
+    createdBy: actor.id,
   });
 }
 
 export async function uploadFile(
   file: Express.Multer.File,
-  createdBy: string,
+  actor: AuthenticatedUser,
   visibility: 'admin' | 'doctor' | 'patient' | 'clinical' | 'authenticated' = 'admin',
 ) {
   if (!file) {
@@ -34,44 +36,35 @@ export async function uploadFile(
     extension: path.extname(file.originalname).replace('.', '').toLowerCase(),
     storagePath: file.path,
     visibility,
-    createdBy,
+    createdBy: actor.id,
   });
 }
 
-export async function getFileEntries(
-  actorRole: 'admin' | 'doctor' | 'patient',
-) {
-  const query =
-    actorRole === 'admin'
-      ? {}
-      : {
-          visibility: {
-            $in:
-              actorRole === 'doctor'
-                ? ['doctor', 'clinical', 'authenticated']
-                : ['patient', 'authenticated'],
-          },
-        };
-
-  return FileEntryModel.find(query).populate('createdBy', '-password').sort({ kind: 1, createdAt: -1 });
+export async function getFileEntries(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  return FileEntryModel.find({ createdBy: { $in: organizationUserIds } }).populate('createdBy', '-password').sort({ kind: 1, createdAt: -1 });
 }
 
-export async function getFileEntryContent(fileEntryId: string, actorRole: 'admin' | 'doctor' | 'patient') {
-  const fileEntry = await FileEntryModel.findById(fileEntryId);
+export async function getFileEntryContent(fileEntryId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const fileEntry = await FileEntryModel.findOne({
+    _id: fileEntryId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!fileEntry || fileEntry.kind !== 'file' || !fileEntry.storagePath) {
     throw new AppError('File not found', 404);
   }
 
-  if (!canAccessFileEntry(fileEntry.visibility ?? 'admin', actorRole)) {
-    throw new AppError('You are not allowed to access this file', 403);
-  }
-
   return fileEntry;
 }
 
-export async function deleteFileEntry(fileEntryId: string) {
-  const deletedFileEntry = await FileEntryModel.findByIdAndDelete(fileEntryId);
+export async function deleteFileEntry(fileEntryId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const deletedFileEntry = await FileEntryModel.findOneAndDelete({
+    _id: fileEntryId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!deletedFileEntry) {
     throw new AppError('File entry not found', 404);
@@ -106,23 +99,4 @@ function resolveFileType(mimeType: string, fileName: string) {
   }
 
   return 'other';
-}
-
-function canAccessFileEntry(
-  visibility: 'admin' | 'doctor' | 'patient' | 'clinical' | 'authenticated',
-  actorRole: 'admin' | 'doctor' | 'patient',
-) {
-  if (actorRole === 'admin') {
-    return true;
-  }
-
-  if (visibility === 'authenticated') {
-    return true;
-  }
-
-  if (visibility === 'clinical') {
-    return actorRole === 'doctor';
-  }
-
-  return visibility === actorRole;
 }

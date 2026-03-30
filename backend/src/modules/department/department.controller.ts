@@ -10,7 +10,7 @@ import {
 } from './department.service.js';
 
 export const createDepartmentHandler = asyncHandler(async (req: Request, res: Response) => {
-  const department = await createDepartment(req.body, req.user!.id);
+  const department = await createDepartment(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -30,7 +30,7 @@ export const createDepartmentHandler = asyncHandler(async (req: Request, res: Re
 });
 
 export const getDepartmentsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const departments = await getDepartments();
+  const departments = await getDepartments(_req.user!);
 
   sendResponse({
     res,
@@ -40,7 +40,7 @@ export const getDepartmentsHandler = asyncHandler(async (_req: Request, res: Res
 });
 
 export const updateDepartmentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const department = await updateDepartment(req.params.id, req.body);
+  const department = await updateDepartment(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -59,7 +59,7 @@ export const updateDepartmentHandler = asyncHandler(async (req: Request<{ id: st
 });
 
 export const deleteDepartmentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteDepartment(req.params.id);
+  await deleteDepartment(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

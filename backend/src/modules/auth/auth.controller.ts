@@ -11,7 +11,7 @@ import {
 } from './auth.service.js';
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
-  const result = await registerUser(req.body);
+  const result = await registerUser(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -43,6 +43,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       role: result.user.role,
       email: result.user.email,
       name: result.user.name,
+      organizationId: result.organization._id,
     },
     action: 'auth.login',
     entityType: 'session',
@@ -58,7 +59,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const me = asyncHandler(async (req: Request, res: Response) => {
-  const user = await getCurrentUser(req.user!.id);
+  const user = await getCurrentUser(req.user!);
 
   sendResponse({
     res,
@@ -72,6 +73,9 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response) =
 
   await recordAuditEvent({
     req,
+    actor: {
+      organizationId: result.organization?._id,
+    },
     action: 'auth.password-reset.requested',
     entityType: 'password-reset',
     summary: `Password reset requested for ${req.body.email}`,
@@ -98,6 +102,7 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
       role: result.user.role,
       email: result.user.email,
       name: result.user.name,
+      organizationId: result.organization._id,
     },
     action: 'auth.password-reset.completed',
     entityType: 'user',

@@ -1,19 +1,21 @@
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppSettingModel } from './app-setting.model.js';
 import type { updateAppSettingSchema } from './app-setting.validation.js';
 
 type UpdateAppSettingPayload = z.infer<typeof updateAppSettingSchema>['body'];
 
-export async function getAppSettings() {
-  return findOrCreateDefaultSettings();
+export async function getAppSettings(actor: AuthenticatedUser) {
+  return findOrCreateDefaultSettings(actor.organizationId);
 }
 
-export async function updateAppSettings(payload: UpdateAppSettingPayload, userId: string) {
+export async function updateAppSettings(payload: UpdateAppSettingPayload, actor: AuthenticatedUser) {
   const settings = await AppSettingModel.findOneAndUpdate(
-    { singletonKey: 'default' },
+    { singletonKey: 'default', organization: actor.organizationId },
     {
       ...payload,
-      updatedBy: userId,
+      organization: actor.organizationId,
+      updatedBy: actor.id,
     },
     {
       new: true,
@@ -26,12 +28,18 @@ export async function updateAppSettings(payload: UpdateAppSettingPayload, userId
   return settings;
 }
 
-async function findOrCreateDefaultSettings() {
-  const existingSettings = await AppSettingModel.findOne({ singletonKey: 'default' }).populate('updatedBy', '-password');
+async function findOrCreateDefaultSettings(organizationId: string) {
+  const existingSettings = await AppSettingModel.findOne({
+    singletonKey: 'default',
+    organization: organizationId,
+  }).populate('updatedBy', '-password');
 
   if (existingSettings) {
     return existingSettings;
   }
 
-  return AppSettingModel.create({ singletonKey: 'default' });
+  return AppSettingModel.create({
+    singletonKey: 'default',
+    organization: organizationId,
+  });
 }

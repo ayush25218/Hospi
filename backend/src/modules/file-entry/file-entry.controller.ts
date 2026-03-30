@@ -14,7 +14,7 @@ import {
 } from './file-entry.service.js';
 
 export const createFolderHandler = asyncHandler(async (req: Request, res: Response) => {
-  const folder = await createFolder(req.body, req.user!.id);
+  const folder = await createFolder(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -44,7 +44,7 @@ export const uploadFileHandler = asyncHandler(async (req: Request, res: Response
     | 'clinical'
     | 'authenticated'
     | undefined;
-  const fileEntry = await uploadFile(req.file!, req.user!.id, visibility ?? 'admin');
+  const fileEntry = await uploadFile(req.file!, req.user!, visibility ?? 'admin');
 
   await recordAuditEvent({
     req,
@@ -67,7 +67,7 @@ export const uploadFileHandler = asyncHandler(async (req: Request, res: Response
 });
 
 export const getFileEntriesHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const fileEntries = await getFileEntries(_req.user!.role);
+  const fileEntries = await getFileEntries(_req.user!);
 
   sendResponse({
     res,
@@ -77,7 +77,7 @@ export const getFileEntriesHandler = asyncHandler(async (_req: Request, res: Res
 });
 
 export const getFileContentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
-  const fileEntry = await getFileEntryContent(req.params.id, req.user!.role);
+  const fileEntry = await getFileEntryContent(req.params.id, req.user!);
   const resolvedPath = path.resolve(fileEntry.storagePath!);
 
   try {
@@ -108,7 +108,7 @@ export const getFileContentHandler = asyncHandler(async (req: Request<{ id: stri
 });
 
 export const deleteFileEntryHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteFileEntry(req.params.id);
+  await deleteFileEntry(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

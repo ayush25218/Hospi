@@ -1,13 +1,18 @@
+import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import { UserModel } from '../user/user.model.js';
 import { PatientModel } from './patient.model.js';
-import type { z } from 'zod';
 import type { createPatientSchema } from './patient.validation.js';
 
 type CreatePatientPayload = z.infer<typeof createPatientSchema>['body'];
 
-export async function createPatient(payload: CreatePatientPayload) {
-  const existingUser = await UserModel.findOne({ email: payload.email });
+export async function createPatient(payload: CreatePatientPayload, actor: AuthenticatedUser) {
+  const existingUser = await UserModel.findOne({
+    email: payload.email,
+    organization: actor.organizationId,
+  });
 
   if (existingUser) {
     throw new AppError('Patient already exists with this email', 409);
@@ -19,6 +24,7 @@ export async function createPatient(payload: CreatePatientPayload) {
     phone: payload.phone,
     password: payload.password,
     role: 'patient',
+    organization: actor.organizationId,
   });
 
   try {
@@ -40,8 +46,9 @@ export async function createPatient(payload: CreatePatientPayload) {
   }
 }
 
-export async function getPatients() {
-  return PatientModel.find().populate('user', '-password').sort({ createdAt: -1 });
+export async function getPatients(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  return PatientModel.find({ user: { $in: organizationUserIds } }).populate('user', '-password').sort({ createdAt: -1 });
 }
 
 export async function getPatientByUserId(userId: string) {

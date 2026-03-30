@@ -10,7 +10,7 @@ import {
 } from './leave-request.service.js';
 
 export const createLeaveRequestHandler = asyncHandler(async (req: Request, res: Response) => {
-  const leaveRequest = await createLeaveRequest(req.body, req.user!.id);
+  const leaveRequest = await createLeaveRequest(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -30,7 +30,7 @@ export const createLeaveRequestHandler = asyncHandler(async (req: Request, res: 
 });
 
 export const getLeaveRequestsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const leaveRequests = await getLeaveRequests();
+  const leaveRequests = await getLeaveRequests(_req.user!);
 
   sendResponse({
     res,
@@ -41,7 +41,7 @@ export const getLeaveRequestsHandler = asyncHandler(async (_req: Request, res: R
 
 export const updateLeaveRequestStatusHandler = asyncHandler(
   async (req: Request<{ id: string }>, res: Response) => {
-  const leaveRequest = await updateLeaveRequestStatus(req.params.id, req.body);
+  const leaveRequest = await updateLeaveRequestStatus(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -61,7 +61,7 @@ export const updateLeaveRequestStatusHandler = asyncHandler(
 );
 
 export const deleteLeaveRequestHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteLeaveRequest(req.params.id);
+  await deleteLeaveRequest(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

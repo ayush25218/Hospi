@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createExpense, deleteExpense, getExpenses } from './expense.service.js';
 
 export const createExpenseHandler = asyncHandler(async (req: Request, res: Response) => {
-  const expense = await createExpense(req.body, req.user!.id);
+  const expense = await createExpense(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createExpenseHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getExpensesHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const expenses = await getExpenses();
+  const expenses = await getExpenses(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getExpensesHandler = asyncHandler(async (_req: Request, res: Respon
 });
 
 export const deleteExpenseHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteExpense(req.params.id);
+  await deleteExpense(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

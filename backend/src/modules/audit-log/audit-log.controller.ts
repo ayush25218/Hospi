@@ -4,7 +4,7 @@ import { sendResponse } from '../../utils/api-response.js';
 import { getAuditLogs } from './audit-log.service.js';
 
 export const getAuditLogsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const auditLogs = await getAuditLogs();
+  const auditLogs = await getAuditLogs(_req.user!);
 
   sendResponse({
     res,

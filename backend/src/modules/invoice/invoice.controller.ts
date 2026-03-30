@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createInvoice, deleteInvoice, getInvoices } from './invoice.service.js';
 
 export const createInvoiceHandler = asyncHandler(async (req: Request, res: Response) => {
-  const invoice = await createInvoice(req.body, req.user!.id);
+  const invoice = await createInvoice(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createInvoiceHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getInvoicesHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const invoices = await getInvoices();
+  const invoices = await getInvoices(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getInvoicesHandler = asyncHandler(async (_req: Request, res: Respon
 });
 
 export const deleteInvoiceHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteInvoice(req.params.id);
+  await deleteInvoice(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

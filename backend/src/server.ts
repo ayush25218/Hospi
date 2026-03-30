@@ -2,12 +2,14 @@ import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { connectDatabase } from './db/connect-database.js';
+import { ensureOrganizationBackfill } from './modules/organization/organization.service.js';
 
 const app = createApp();
 
 async function bootstrap() {
   try {
     await connectDatabase();
+    await ensureOrganizationBackfill();
 
     const server = app.listen(env.PORT, () => {
       console.log(`Hospi backend running on http://localhost:${env.PORT}`);

@@ -5,8 +5,11 @@ export type SessionUser = {
   role: UserRole;
   email: string;
   name: string;
+  organizationId?: string;
+  organizationSlug?: string;
+  organizationName?: string;
   token?: string;
-  source?: 'backend' | 'demo';
+  source?: 'backend';
 };
 
 type RoleMeta = {
@@ -124,8 +127,11 @@ function parseSession(rawValue: string | null): SessionUser | null {
       role: parsed.role as UserRole,
       email: parsed.email,
       name: parsed.name,
+      organizationId: typeof parsed.organizationId === 'string' ? parsed.organizationId : undefined,
+      organizationSlug: typeof parsed.organizationSlug === 'string' ? parsed.organizationSlug : undefined,
+      organizationName: typeof parsed.organizationName === 'string' ? parsed.organizationName : undefined,
       token: typeof parsed.token === 'string' ? parsed.token : undefined,
-      source: parsed.source === 'backend' || parsed.source === 'demo' ? parsed.source : undefined,
+      source: parsed.source === 'backend' ? parsed.source : undefined,
     };
   } catch {
     return null;

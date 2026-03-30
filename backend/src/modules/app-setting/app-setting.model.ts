@@ -5,8 +5,13 @@ const appSettingSchema = new Schema(
     singletonKey: {
       type: String,
       required: true,
-      unique: true,
       default: 'default',
+    },
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
     },
     appTitle: {
       type: String,
@@ -82,6 +87,8 @@ const appSettingSchema = new Schema(
     versionKey: false,
   },
 );
+
+appSettingSchema.index({ organization: 1, singletonKey: 1 }, { unique: true });
 
 export type AppSetting = InferSchemaType<typeof appSettingSchema>;
 

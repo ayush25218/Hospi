@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { LuArrowLeft, LuKeyRound, LuMail, LuShieldCheck } from 'react-icons/lu';
+import { LuArrowLeft, LuBuilding2, LuKeyRound, LuMail, LuShieldCheck } from 'react-icons/lu';
 import { apiRequest, describeError } from '@/lib/api-client';
 
 type ForgotPasswordResponse = {
@@ -10,10 +10,18 @@ type ForgotPasswordResponse = {
   expiresAt?: string;
   resetUrl?: string;
   resetToken?: string;
+  delivery?: 'screen-preview' | 'email';
+  organization?: {
+    _id: string;
+    name: string;
+    slug: string;
+  };
 };
 
 export default function ForgotPasswordPage() {
+  const defaultWorkspaceSlug = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_SLUG ?? 'main-hospital';
   const [email, setEmail] = useState('');
+  const [organizationSlug, setOrganizationSlug] = useState(defaultWorkspaceSlug);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ForgotPasswordResponse | null>(null);
@@ -28,6 +36,7 @@ export default function ForgotPasswordPage() {
         method: 'POST',
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
+          organizationSlug: organizationSlug.trim().toLowerCase() || undefined,
         }),
       });
 
@@ -50,8 +59,8 @@ export default function ForgotPasswordPage() {
             </span>
             <h1 className="mt-6 text-3xl font-semibold">Reset access without leaving the portal.</h1>
             <p className="mt-4 text-sm leading-6 text-white/70">
-              Enter the email linked to your hospital account. For local development, the reset link is shown
-              directly on screen instead of being emailed.
+              Enter the email linked to your hospital account. Development mode can preview the reset link
+              on screen, while production workspaces deliver it by email.
             </p>
             <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/75">
               Admin-created doctor, patient, and admin accounts can all use this flow.
@@ -89,6 +98,20 @@ export default function ForgotPasswordPage() {
                   </div>
                 </label>
 
+                <label className="block">
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Workspace code</span>
+                  <div className="relative">
+                    <LuBuilding2 className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={organizationSlug}
+                      onChange={(event) => setOrganizationSlug(event.target.value)}
+                      placeholder="main-hospital"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-3.5 text-slate-950 outline-none transition focus:border-slate-400"
+                    />
+                  </div>
+                </label>
+
                 {error ? (
                   <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                     {error}
@@ -106,6 +129,7 @@ export default function ForgotPasswordPage() {
                         {result.expiresAt ? (
                           <p>Token expiry: {new Date(result.expiresAt).toLocaleString('en-IN')}</p>
                         ) : null}
+                        {result.organization ? <p>Workspace: {result.organization.name}</p> : null}
                         {result.resetUrl ? (
                           <Link
                             href={result.resetUrl.replace(/^https?:\/\/[^/]+/, '')}
@@ -114,7 +138,11 @@ export default function ForgotPasswordPage() {
                             Open reset form
                           </Link>
                         ) : (
-                          <p>Check your configured delivery channel for the reset link.</p>
+                          <p>
+                            {result.delivery === 'email'
+                              ? 'Check the configured email inbox for the reset link.'
+                              : 'Check your configured delivery channel for the reset link.'}
+                          </p>
                         )}
                       </div>
                     </div>

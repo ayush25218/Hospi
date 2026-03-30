@@ -1,5 +1,7 @@
 import type { z } from 'zod';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AppError } from '../../utils/app-error.js';
+import { getOrganizationUserIds } from '../../utils/organization-scope.js';
 import { DoctorModel } from '../doctor/doctor.model.js';
 import { PatientModel } from '../patient/patient.model.js';
 import { RoomModel } from './room.model.js';
@@ -17,7 +19,7 @@ type AssignRoomPayload = z.infer<typeof assignRoomSchema>['body'];
 type UpdateRoomStatusPayload = z.infer<typeof updateRoomStatusSchema>['body'];
 type VacateRoomPayload = z.infer<typeof vacateRoomSchema>['body'];
 
-export async function createRoom(payload: CreateRoomPayload, createdBy: string) {
+export async function createRoom(payload: CreateRoomPayload, actor: AuthenticatedUser) {
   const room = await RoomModel.create({
     roomNumber: payload.roomNumber,
     floor: payload.floor,
@@ -25,24 +27,27 @@ export async function createRoom(payload: CreateRoomPayload, createdBy: string) 
     bedLabel: payload.bedLabel,
     status: payload.status ?? 'available',
     notes: payload.notes,
-    createdBy,
+    createdBy: actor.id,
   });
 
-  return getRoomById(room.id);
+  return getRoomById(room.id, actor);
 }
 
-export async function getRooms() {
-  return RoomModel.find()
+export async function getRooms(actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+
+  return RoomModel.find({ createdBy: { $in: organizationUserIds } })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password')
     .sort({ roomNumber: 1 });
 }
 
-export async function updateRoom(roomId: string, payload: UpdateRoomPayload) {
+export async function updateRoom(roomId: string, payload: UpdateRoomPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
   const nextStatus = payload.status;
-  const room = await RoomModel.findByIdAndUpdate(
-    roomId,
+  const room = await RoomModel.findOneAndUpdate(
+    { _id: roomId, createdBy: { $in: organizationUserIds } },
     {
       ...(payload.roomNumber ? { roomNumber: payload.roomNumber } : {}),
       ...(payload.floor ? { floor: payload.floor } : {}),
@@ -74,11 +79,12 @@ export async function updateRoom(roomId: string, payload: UpdateRoomPayload) {
   return room;
 }
 
-export async function assignRoom(roomId: string, payload: AssignRoomPayload) {
+export async function assignRoom(roomId: string, payload: AssignRoomPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
   const [room, patient, doctor] = await Promise.all([
-    RoomModel.findById(roomId),
-    PatientModel.findById(payload.patientId),
-    DoctorModel.findById(payload.doctorId),
+    RoomModel.findOne({ _id: roomId, createdBy: { $in: organizationUserIds } }),
+    PatientModel.findOne({ _id: payload.patientId, user: { $in: organizationUserIds } }),
+    DoctorModel.findOne({ _id: payload.doctorId, user: { $in: organizationUserIds } }),
   ]);
 
   if (!room) {
@@ -109,16 +115,17 @@ export async function assignRoom(roomId: string, payload: AssignRoomPayload) {
 
   await room.save();
 
-  return getRoomById(room.id);
+  return getRoomById(room.id, actor);
 }
 
-export async function updateRoomStatus(roomId: string, payload: UpdateRoomStatusPayload) {
+export async function updateRoomStatus(roomId: string, payload: UpdateRoomStatusPayload, actor: AuthenticatedUser) {
   if (payload.status === 'occupied') {
     throw new AppError('Use room assignment to mark a room as occupied', 400);
   }
 
-  const room = await RoomModel.findByIdAndUpdate(
-    roomId,
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const room = await RoomModel.findOneAndUpdate(
+    { _id: roomId, createdBy: { $in: organizationUserIds } },
     {
       status: payload.status,
       patient: undefined,
@@ -141,9 +148,10 @@ export async function updateRoomStatus(roomId: string, payload: UpdateRoomStatus
   return room;
 }
 
-export async function vacateRoom(roomId: string, payload: VacateRoomPayload) {
-  const room = await RoomModel.findByIdAndUpdate(
-    roomId,
+export async function vacateRoom(roomId: string, payload: VacateRoomPayload, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const room = await RoomModel.findOneAndUpdate(
+    { _id: roomId, createdBy: { $in: organizationUserIds } },
     {
       status: payload.status ?? 'available',
       patient: undefined,
@@ -166,8 +174,12 @@ export async function vacateRoom(roomId: string, payload: VacateRoomPayload) {
   return room;
 }
 
-export async function deleteRoom(roomId: string) {
-  const room = await RoomModel.findById(roomId);
+export async function deleteRoom(roomId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const room = await RoomModel.findOne({
+    _id: roomId,
+    createdBy: { $in: organizationUserIds },
+  });
 
   if (!room) {
     throw new AppError('Room not found', 404);
@@ -180,8 +192,12 @@ export async function deleteRoom(roomId: string) {
   await room.deleteOne();
 }
 
-async function getRoomById(roomId: string) {
-  const room = await RoomModel.findById(roomId)
+async function getRoomById(roomId: string, actor: AuthenticatedUser) {
+  const organizationUserIds = await getOrganizationUserIds(actor.organizationId);
+  const room = await RoomModel.findOne({
+    _id: roomId,
+    createdBy: { $in: organizationUserIds },
+  })
     .populate({ path: 'patient', populate: { path: 'user', select: '-password' } })
     .populate({ path: 'doctor', populate: { path: 'user', select: '-password' } })
     .populate('createdBy', '-password');

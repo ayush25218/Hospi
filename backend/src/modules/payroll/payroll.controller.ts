@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../audit-log/audit-log.service.js';
 import { createPayroll, deletePayroll, getPayrolls, updatePayroll } from './payroll.service.js';
 
 export const createPayrollHandler = asyncHandler(async (req: Request, res: Response) => {
-  const payroll = await createPayroll(req.body, req.user!.id);
+  const payroll = await createPayroll(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -25,7 +25,7 @@ export const createPayrollHandler = asyncHandler(async (req: Request, res: Respo
 });
 
 export const getPayrollsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const payrolls = await getPayrolls();
+  const payrolls = await getPayrolls(_req.user!);
 
   sendResponse({
     res,
@@ -35,7 +35,7 @@ export const getPayrollsHandler = asyncHandler(async (_req: Request, res: Respon
 });
 
 export const updatePayrollHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const payroll = await updatePayroll(req.params.id, req.body);
+  const payroll = await updatePayroll(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -54,7 +54,7 @@ export const updatePayrollHandler = asyncHandler(async (req: Request<{ id: strin
 });
 
 export const deletePayrollHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deletePayroll(req.params.id);
+  await deletePayroll(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

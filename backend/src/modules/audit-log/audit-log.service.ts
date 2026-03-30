@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { AuthenticatedUser } from '../../types/authenticated-user.js';
 import { AuditLogModel } from './audit-log.model.js';
 
 type AuditActorInput =
@@ -8,6 +9,7 @@ type AuditActorInput =
       role?: unknown;
       email?: unknown;
       name?: unknown;
+      organizationId?: unknown;
     }
   | null
   | undefined;
@@ -25,8 +27,10 @@ type RecordAuditEventOptions = {
 export async function recordAuditEvent(options: RecordAuditEventOptions) {
   try {
     const actor = normalizeActor(options.actor);
+    const organizationId = normalizeString(options.req?.user?.organizationId ?? options.actor?.organizationId);
 
     await AuditLogModel.create({
+      organization: organizationId,
       action: options.action,
       entityType: options.entityType,
       entityId: normalizeString(options.entityId),
@@ -47,8 +51,8 @@ export async function recordAuditEvent(options: RecordAuditEventOptions) {
   }
 }
 
-export async function getAuditLogs() {
-  return AuditLogModel.find().sort({ createdAt: -1 }).limit(500);
+export async function getAuditLogs(actor: AuthenticatedUser) {
+  return AuditLogModel.find({ organization: actor.organizationId }).sort({ createdAt: -1 }).limit(500);
 }
 
 function normalizeActor(actor: AuditActorInput) {

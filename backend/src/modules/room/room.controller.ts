@@ -13,7 +13,7 @@ import {
 } from './room.service.js';
 
 export const createRoomHandler = asyncHandler(async (req: Request, res: Response) => {
-  const room = await createRoom(req.body, req.user!.id);
+  const room = await createRoom(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -33,7 +33,7 @@ export const createRoomHandler = asyncHandler(async (req: Request, res: Response
 });
 
 export const getRoomsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const rooms = await getRooms();
+  const rooms = await getRooms(_req.user!);
 
   sendResponse({
     res,
@@ -43,7 +43,7 @@ export const getRoomsHandler = asyncHandler(async (_req: Request, res: Response)
 });
 
 export const updateRoomHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const room = await updateRoom(req.params.id, req.body);
+  const room = await updateRoom(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -62,7 +62,7 @@ export const updateRoomHandler = asyncHandler(async (req: Request<{ id: string }
 });
 
 export const assignRoomHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const room = await assignRoom(req.params.id, req.body);
+  const room = await assignRoom(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -81,7 +81,7 @@ export const assignRoomHandler = asyncHandler(async (req: Request<{ id: string }
 });
 
 export const updateRoomStatusHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const room = await updateRoomStatus(req.params.id, req.body);
+  const room = await updateRoomStatus(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -100,7 +100,7 @@ export const updateRoomStatusHandler = asyncHandler(async (req: Request<{ id: st
 });
 
 export const vacateRoomHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const room = await vacateRoom(req.params.id, req.body);
+  const room = await vacateRoom(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -119,7 +119,7 @@ export const vacateRoomHandler = asyncHandler(async (req: Request<{ id: string }
 });
 
 export const deleteRoomHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteRoom(req.params.id);
+  await deleteRoom(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,

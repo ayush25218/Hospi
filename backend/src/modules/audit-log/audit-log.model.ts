@@ -2,6 +2,12 @@ import mongoose, { Schema, type InferSchemaType } from 'mongoose';
 
 const auditLogSchema = new Schema(
   {
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
+    },
     action: {
       type: String,
       required: true,

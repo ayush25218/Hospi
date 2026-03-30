@@ -10,7 +10,7 @@ import {
 } from './appointment.service.js';
 
 export const createAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
-  const appointment = await createAppointment(req.body, req.user!.id);
+  const appointment = await createAppointment(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -30,7 +30,7 @@ export const createAppointmentHandler = asyncHandler(async (req: Request, res: R
 });
 
 export const getAppointmentsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const appointments = await getAppointmentsForUser(req.user!.id, req.user!.role);
+  const appointments = await getAppointmentsForUser(req.user!);
 
   sendResponse({
     res,
@@ -40,7 +40,7 @@ export const getAppointmentsHandler = asyncHandler(async (req: Request, res: Res
 });
 
 export const getAppointmentByIdHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const appointment = await getAppointmentById(req.params.id);
+  const appointment = await getAppointmentById(req.params.id, req.user!);
 
   sendResponse({
     res,
@@ -50,7 +50,7 @@ export const getAppointmentByIdHandler = asyncHandler(async (req: Request<{ id: 
 });
 
 export const updateAppointmentHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const appointment = await updateAppointment(req.params.id, req.body);
+  const appointment = await updateAppointment(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,

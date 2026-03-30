@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   LuArrowLeft,
+  LuBuilding2,
   LuCircleCheck,
   LuLock,
   LuMail,
@@ -56,9 +57,11 @@ export function LoginForm({ role }: { role: UserRole }) {
   const roleMeta = getRoleMeta(role);
   const styles = roleStyles[role];
   const isAdminRole = role === 'admin';
+  const defaultWorkspaceSlug = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE_SLUG ?? 'main-hospital';
 
   const [email, setEmail] = useState(isAdminRole ? roleMeta.credentials.email : '');
   const [password, setPassword] = useState(isAdminRole ? roleMeta.credentials.password : '');
+  const [organizationSlug, setOrganizationSlug] = useState(defaultWorkspaceSlug);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -82,6 +85,7 @@ export function LoginForm({ role }: { role: UserRole }) {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
+          organizationSlug: organizationSlug.trim().toLowerCase() || undefined,
         }),
       });
 
@@ -97,6 +101,9 @@ export function LoginForm({ role }: { role: UserRole }) {
         role: result.user.role,
         email: result.user.email,
         name: result.user.name,
+        organizationId: result.organization._id,
+        organizationSlug: result.organization.slug,
+        organizationName: result.organization.name,
         token: result.token,
         source: 'backend',
       });
@@ -210,6 +217,9 @@ export function LoginForm({ role }: { role: UserRole }) {
                   <p className="mt-1">
                     Password: <span className="font-medium text-slate-950">{roleMeta.credentials.password}</span>
                   </p>
+                  <p className="mt-1">
+                    Workspace: <span className="font-medium text-slate-950">{defaultWorkspaceSlug}</span>
+                  </p>
                 </>
               ) : (
                 <>
@@ -231,6 +241,20 @@ export function LoginForm({ role }: { role: UserRole }) {
                     className="w-full rounded-[1.35rem] border border-slate-200 bg-white px-12 py-3.5 text-slate-950 outline-none transition focus:border-slate-400 focus:shadow-[0_0_0_4px_rgba(148,163,184,0.12)]"
                     placeholder="you@hospital.com"
                     required
+                  />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-700">Workspace code</span>
+                <div className="relative">
+                  <LuBuilding2 className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={organizationSlug}
+                    onChange={(event) => setOrganizationSlug(event.target.value)}
+                    className="w-full rounded-[1.35rem] border border-slate-200 bg-white px-12 py-3.5 text-slate-950 outline-none transition focus:border-slate-400 focus:shadow-[0_0_0_4px_rgba(148,163,184,0.12)]"
+                    placeholder="main-hospital"
                   />
                 </div>
               </label>

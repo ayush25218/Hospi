@@ -10,7 +10,7 @@ import {
 } from './operation.service.js';
 
 export const createOperationHandler = asyncHandler(async (req: Request, res: Response) => {
-  const operation = await createOperation(req.body, req.user!.id);
+  const operation = await createOperation(req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -30,7 +30,7 @@ export const createOperationHandler = asyncHandler(async (req: Request, res: Res
 });
 
 export const getOperationsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const operations = await getOperations();
+  const operations = await getOperations(_req.user!);
 
   sendResponse({
     res,
@@ -40,7 +40,7 @@ export const getOperationsHandler = asyncHandler(async (_req: Request, res: Resp
 });
 
 export const updateOperationStatusHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  const operation = await updateOperationStatus(req.params.id, req.body);
+  const operation = await updateOperationStatus(req.params.id, req.body, req.user!);
 
   await recordAuditEvent({
     req,
@@ -59,7 +59,7 @@ export const updateOperationStatusHandler = asyncHandler(async (req: Request<{ i
 });
 
 export const deleteOperationHandler = asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
-  await deleteOperation(req.params.id);
+  await deleteOperation(req.params.id, req.user!);
 
   await recordAuditEvent({
     req,
