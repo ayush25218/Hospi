@@ -144,7 +144,7 @@ export default function OPDPage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Patient, doctor, reason, or visit ref"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-950 placeholder:text-slate-950 outline-none transition focus:border-cyan-400"
             />
           </label>
 
@@ -156,7 +156,7 @@ export default function OPDPage() {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as 'all' | AppointmentStatus)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-cyan-400"
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-slate-950 outline-none transition focus:border-cyan-400"
             >
               <option value="all">All statuses</option>
               <option value="scheduled">Scheduled</option>

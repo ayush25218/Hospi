@@ -6,10 +6,12 @@ import {
   LuCalendarCheck,
   LuCalendarDays,
   LuCalendarPlus,
+  LuFilePenLine,
   LuFilter,
   LuHourglass,
   LuPrinter,
   LuSearch,
+  LuSparkles,
 } from 'react-icons/lu';
 import { BackendAccessNotice } from '@/components/state/backend-access-notice';
 import {
@@ -126,6 +128,15 @@ export default function AppointmentsPage() {
     });
   }, [appointments, searchTerm, statusFilter, timeRange]);
 
+  const summary = useMemo(() => {
+    return {
+      total: filteredAppointments.length,
+      confirmed: filteredAppointments.filter((appointment) => appointment.status === 'confirmed').length,
+      pending: filteredAppointments.filter((appointment) => appointment.status === 'scheduled').length,
+      completed: filteredAppointments.filter((appointment) => appointment.status === 'completed').length,
+    };
+  }, [filteredAppointments]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -141,53 +152,82 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col items-center justify-between gap-4 md:flex-row non-printable">
-        <div className="flex items-center gap-3">
-          <LuCalendarCheck className="h-8 w-8 text-indigo-700" />
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Manage Appointments</h1>
-            <p className="mt-1 text-sm text-gray-500">Live appointments synced from the backend.</p>
+      <section className="hospi-panel overflow-hidden rounded-[2.2rem] px-6 py-8 text-white shadow-[0_28px_90px_rgba(5,12,24,0.42)] sm:px-8 non-printable">
+        <div className="grid gap-8 lg:grid-cols-[1.14fr_0.86fr]">
+          <div className="space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">
+              <LuCalendarCheck className="h-4 w-4" />
+              Appointment command board
+            </div>
+
+            <div>
+              <h1 className="text-4xl font-semibold leading-[0.95] text-white sm:text-5xl">
+                Manage live bookings in a cleaner, more responsive workflow.
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/66 sm:text-base">
+                Search, filter, review, and edit appointments from one brighter control surface built for daily admin work.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/appointment/add"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+              >
+                <LuCalendarPlus className="h-4 w-4" />
+                New Appointment
+              </Link>
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09]"
+              >
+                <LuPrinter className="h-4 w-4" />
+                Print View
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 rounded-[1.8rem] border border-white/10 bg-white/[0.05] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-white/74">Filter state</p>
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/18 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                <LuSparkles className="h-3.5 w-3.5" />
+                Synced
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SummaryTile label="Visible now" value={String(summary.total)} />
+              <SummaryTile label="Confirmed" value={String(summary.confirmed)} />
+              <SummaryTile label="Pending" value={String(summary.pending)} />
+              <SummaryTile label="Completed" value={String(summary.completed)} />
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700"
-          >
-            <LuPrinter className="h-5 w-5" />
-            Print List
-          </button>
-          <Link
-            href="/appointment/add"
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-700"
-          >
-            <LuCalendarPlus className="h-5 w-5" />
-            New Appointment
-          </Link>
-        </div>
-      </div>
-
-      <div className="space-y-4 rounded-xl bg-white p-4 shadow-md non-printable">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="relative">
-            <span className="absolute left-3 top-3.5 text-gray-400">
-              <LuSearch className="h-5 w-5" />
+      <section className="hospi-light-panel rounded-[1.9rem] p-5 text-slate-950 non-printable">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+          <label className="block">
+            <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <LuSearch className="h-4 w-4 text-slate-400" />
+              Search appointments
             </span>
             <input
               type="text"
               placeholder="Search patient, doctor, or appointment ID..."
-              className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-cyan-400"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
-          </div>
-          <div className="relative">
-            <span className="absolute left-3 top-3.5 text-gray-400">
-              <LuFilter className="h-5 w-5" />
+          </label>
+
+          <label className="block">
+            <span className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <LuFilter className="h-4 w-4 text-slate-400" />
+              Status
             </span>
             <select
-              className="w-full appearance-none rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full appearance-none rounded-[1.35rem] border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-cyan-400"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
             >
@@ -197,93 +237,162 @@ export default function AppointmentsPage() {
                 </option>
               ))}
             </select>
-          </div>
+          </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center text-sm font-medium text-gray-600">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="flex items-center text-sm font-medium text-slate-600">
             <LuCalendarDays className="mr-2 h-4 w-4" />
-            Filter by Date:
+            Filter by date:
           </span>
           {filterButtons.map((button) => (
             <button
               key={button.range}
               onClick={() => setTimeRange(button.range)}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
                 timeRange === button.range
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-slate-950 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               {button.label}
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
       {error ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
-      <div id="printable-appointment-list" className="overflow-hidden rounded-xl bg-white shadow-md">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left">
-            <thead className="border-b border-gray-200 bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Appointment</th>
-                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Patient</th>
-                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Doctor</th>
-                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Date & Time</th>
-                <th className="px-4 py-3 text-sm font-semibold text-gray-600">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                    Loading appointments...
-                  </td>
-                </tr>
-              ) : filteredAppointments.length > 0 ? (
-                filteredAppointments.map((appointment) => {
-                  const statusProps = getStatusProps(appointment.status);
+      <section className="printable-area">
+        <div className="grid gap-4 lg:hidden">
+          {isLoading ? (
+            <div className="hospi-light-panel rounded-[1.8rem] px-4 py-10 text-center text-sm text-slate-500">
+              Loading appointments...
+            </div>
+          ) : filteredAppointments.length > 0 ? (
+            filteredAppointments.map((appointment) => {
+              const statusProps = getStatusProps(appointment.status);
 
-                  return (
-                    <tr key={appointment._id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatRecordId('APT', appointment._id)}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{appointment.patient.user.name}</p>
-                        <p className="text-xs text-gray-500">{formatRecordId('PAT', appointment.patient._id)}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900">{appointment.doctor.user.name}</p>
-                        <p className="text-xs text-gray-500">{appointment.doctor.specialization}</p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(appointment.scheduledAt)}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${statusProps.color}`}
-                        >
-                          {statusProps.icon}
-                          {statusProps.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
-                    No appointments found matching your criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              return (
+                <article key={appointment._id} className="hospi-light-panel rounded-[1.8rem] p-5 text-slate-950">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        {formatRecordId('APT', appointment._id)}
+                      </p>
+                      <h2 className="mt-2 text-lg font-semibold text-slate-950">{appointment.patient.user.name}</h2>
+                      <p className="mt-1 text-sm text-slate-500">{appointment.doctor.user.name}</p>
+                    </div>
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusProps.color}`}>
+                      {statusProps.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-2 text-sm text-slate-600">
+                    <p>{appointment.doctor.specialization}</p>
+                    <p>{formatDateTime(appointment.scheduledAt)}</p>
+                  </div>
+
+                  <div className="mt-5">
+                    <Link
+                      href={`/appointment/edit/${appointment._id}`}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      <LuFilePenLine className="h-4 w-4" />
+                      Edit appointment
+                    </Link>
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <div className="hospi-light-panel rounded-[1.8rem] px-4 py-10 text-center text-sm text-slate-500">
+              No appointments found matching your criteria.
+            </div>
+          )}
         </div>
-      </div>
+
+        <div className="hospi-light-panel hidden overflow-hidden rounded-[1.9rem] text-slate-950 shadow-sm lg:block">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Appointment</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Patient</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Doctor</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Date & Time</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Status</th>
+                  <th className="px-4 py-4 text-sm font-semibold text-slate-600">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                      Loading appointments...
+                    </td>
+                  </tr>
+                ) : filteredAppointments.length > 0 ? (
+                  filteredAppointments.map((appointment) => {
+                    const statusProps = getStatusProps(appointment.status);
+
+                    return (
+                      <tr key={appointment._id} className="border-b border-slate-100 hover:bg-slate-50/70">
+                        <td className="px-4 py-4 text-sm text-slate-700">{formatRecordId('APT', appointment._id)}</td>
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-slate-950">{appointment.patient.user.name}</p>
+                          <p className="text-xs text-slate-500">{formatRecordId('PAT', appointment.patient._id)}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="font-medium text-slate-950">{appointment.doctor.user.name}</p>
+                          <p className="text-xs text-slate-500">{appointment.doctor.specialization}</p>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-slate-700">{formatDateTime(appointment.scheduledAt)}</td>
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${statusProps.color}`}
+                          >
+                            {statusProps.icon}
+                            {statusProps.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <Link
+                            href={`/appointment/edit/${appointment._id}`}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            <LuFilePenLine className="h-3.5 w-3.5" />
+                            Edit
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
+                      No appointments found matching your criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/42">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
     </div>
   );
 }

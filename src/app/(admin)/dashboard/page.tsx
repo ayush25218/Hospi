@@ -3,12 +3,14 @@ import type { ElementType } from 'react';
 import {
   LuActivity,
   LuArrowRight,
+  LuBadgeIndianRupee,
   LuBedDouble,
   LuCalendarCheck2,
+  LuCommand,
   LuPlus,
+  LuShieldCheck,
   LuStethoscope,
   LuUsers,
-  LuWallet,
 } from 'react-icons/lu';
 
 const metrics = [
@@ -17,28 +19,28 @@ const metrics = [
     value: '1,204',
     change: '+8.2%',
     icon: LuUsers,
-    tone: 'bg-sky-50 text-sky-600',
+    tone: 'from-cyan-400/16 to-cyan-400/5 text-cyan-700',
   },
   {
     label: 'Doctors on duty',
     value: '78',
     change: '+3 today',
     icon: LuStethoscope,
-    tone: 'bg-emerald-50 text-emerald-600',
+    tone: 'from-emerald-400/16 to-emerald-400/5 text-emerald-700',
   },
   {
     label: 'Appointments today',
     value: '32',
     change: '5 pending',
     icon: LuCalendarCheck2,
-    tone: 'bg-amber-50 text-amber-600',
+    tone: 'from-amber-300/20 to-amber-300/6 text-amber-700',
   },
   {
     label: 'Revenue this week',
     value: '$64.8k',
     change: '+12.4%',
-    icon: LuWallet,
-    tone: 'bg-violet-50 text-violet-600',
+    icon: LuBadgeIndianRupee,
+    tone: 'from-violet-400/16 to-violet-400/5 text-violet-700',
   },
 ];
 
@@ -49,11 +51,11 @@ const quickActions = [
   { label: 'Create invoice', href: '/billing/create' },
 ];
 
-const recentUpdates = [
+const systemCards = [
   {
     title: 'Ward occupancy',
     value: '85%',
-    description: 'General and ICU beds are nearing today’s target threshold.',
+    description: "General and ICU beds are nearing today's target threshold.",
     icon: LuBedDouble,
   },
   {
@@ -88,17 +90,24 @@ const recentAppointments = [
 export default function DashboardPage() {
   return (
     <div className="space-y-8">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 px-6 py-8 text-white shadow-[0_24px_70px_rgba(15,23,42,0.14)] sm:px-8">
-        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-200">Admin control room</p>
+      <section className="hospi-panel overflow-hidden rounded-[2.2rem] px-6 py-8 text-white shadow-[0_28px_90px_rgba(5,12,24,0.42)] sm:px-8">
+        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-100">
+              <LuShieldCheck className="h-4 w-4" />
+              Admin control room
+            </div>
+
             <div>
-              <h1 className="text-3xl font-semibold sm:text-4xl">Hospital operations, streamlined.</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
-                A cleaner admin dashboard with faster actions, clearer metrics, and better separation
-                from the doctor and patient experiences.
+              <h1 className="text-4xl font-semibold leading-[0.95] text-white sm:text-5xl">
+                Hospital operations, elevated into one futuristic command deck.
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/66 sm:text-base">
+                The workspace now feels more intentional, with stronger visual hierarchy for quick actions,
+                metrics, and the operational pulse your team checks all day.
               </p>
             </div>
+
             <div className="flex flex-wrap gap-3">
               <Link
                 href="/appointment/add"
@@ -109,26 +118,31 @@ export default function DashboardPage() {
               </Link>
               <Link
                 href="/billing/create"
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/5"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09]"
               >
                 Create invoice
               </Link>
             </div>
           </div>
 
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5">
-            <p className="text-sm font-semibold text-white/75">Today’s focus</p>
-            <div className="mt-4 space-y-4">
-              {recentUpdates.map((update) => (
-                <div key={update.title} className="rounded-2xl bg-white/5 p-4">
+          <div className="grid gap-4 rounded-[1.8rem] border border-white/10 bg-white/[0.05] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-white/74">Today&apos;s focus</p>
+              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                Live
+              </span>
+            </div>
+            <div className="space-y-4">
+              {systemCards.map((card) => (
+                <div key={card.title} className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-400/10 text-cyan-200">
-                      <update.icon className="h-5 w-5" />
+                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-300/10 text-cyan-100">
+                      <card.icon className="h-5 w-5" />
                     </div>
-                    <span className="text-xl font-semibold">{update.value}</span>
+                    <span className="text-2xl font-semibold tracking-[-0.04em] text-white">{card.value}</span>
                   </div>
-                  <p className="mt-4 text-base font-semibold">{update.title}</p>
-                  <p className="mt-1 text-sm text-white/65">{update.description}</p>
+                  <p className="mt-4 text-base font-semibold text-white">{card.title}</p>
+                  <p className="mt-1 text-sm text-white/62">{card.description}</p>
                 </div>
               ))}
             </div>
@@ -142,14 +156,16 @@ export default function DashboardPage() {
         ))}
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+        <div className="hospi-light-panel rounded-[1.9rem] p-6 text-slate-950">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Quick actions</h2>
-              <p className="mt-1 text-sm text-slate-500">The most common admin tasks, one click away.</p>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">Quick actions</h2>
+              <p className="mt-1 text-sm text-slate-500">The highest-frequency admin tasks are surfaced first.</p>
             </div>
-            <LuPlus className="h-5 w-5 text-slate-300" />
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-950 text-cyan-100">
+              <LuCommand className="h-5 w-5" />
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3">
@@ -157,19 +173,29 @@ export default function DashboardPage() {
               <Link
                 key={action.label}
                 href={action.href}
-                className="rounded-2xl border border-slate-200 px-4 py-4 text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+                className="rounded-[1.4rem] border border-slate-200 bg-white px-4 py-4 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
               >
                 {action.label}
               </Link>
             ))}
           </div>
+
+          <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-950/[0.03] p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              <LuPlus className="h-4 w-4 text-cyan-600" />
+              Operator note
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Use this area as your launch rail for urgent admin work instead of bouncing through multiple menus.
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="hospi-light-panel rounded-[1.9rem] p-6 text-slate-950">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Recent appointments</h2>
-              <p className="mt-1 text-sm text-slate-500">Live view of the latest patient bookings.</p>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-slate-950">Recent appointments</h2>
+              <p className="mt-1 text-sm text-slate-500">Live-feel snapshot of the latest patient bookings.</p>
             </div>
             <Link
               href="/appointment"
@@ -179,7 +205,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="mt-6 overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
@@ -223,14 +249,14 @@ function MetricCard({
   tone: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className={`grid h-11 w-11 place-items-center rounded-2xl ${tone}`}>
+    <div className="hospi-light-panel rounded-[1.75rem] p-5 text-slate-950">
+      <div className="flex items-center justify-between gap-3">
+        <div className={`grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br ${tone}`}>
           <Icon className="h-5 w-5" />
         </div>
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{change}</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{change}</span>
       </div>
-      <p className="mt-5 text-3xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-slate-950">{value}</p>
       <p className="mt-2 text-sm font-medium text-slate-600">{label}</p>
     </div>
   );

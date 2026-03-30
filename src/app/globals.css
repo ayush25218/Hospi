@@ -4,24 +4,187 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --hospi-canvas: #07111f;
+  --hospi-canvas-soft: #0b1b31;
+  --hospi-panel: rgba(10, 24, 44, 0.72);
+  --hospi-panel-strong: rgba(6, 17, 31, 0.92);
+  --hospi-border: rgba(139, 186, 255, 0.18);
+  --hospi-accent: #62e8ff;
+  --hospi-accent-strong: #2dc6ff;
+  --hospi-emerald: #70ffd0;
+  --hospi-gold: #f9d76b;
+  --hospi-text: #eaf4ff;
+  --hospi-muted: #8ea6c3;
+  --hospi-heading-font: "Bahnschrift", "Aptos Display", "Trebuchet MS", sans-serif;
+  --hospi-body-font: "Aptos", "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+
 html {
   scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
-  background: #eff5fb;
-  color: #0f172a;
+  overflow-x: hidden;
+  color: var(--hospi-text);
+  font-family: var(--hospi-body-font);
+  background:
+    radial-gradient(circle at top left, rgba(98, 232, 255, 0.22), transparent 24rem),
+    radial-gradient(circle at 82% 14%, rgba(112, 255, 208, 0.14), transparent 18rem),
+    radial-gradient(circle at 50% 120%, rgba(49, 83, 160, 0.28), transparent 28rem),
+    linear-gradient(180deg, #07111f 0%, #091628 42%, #0b1d34 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(132, 180, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(132, 180, 255, 0.08) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 88%);
+  opacity: 0.3;
+  z-index: -2;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(98, 232, 255, 0.12), transparent 18rem),
+    radial-gradient(circle at 88% 76%, rgba(112, 255, 208, 0.1), transparent 20rem);
+  filter: blur(28px);
+  z-index: -1;
 }
 
 * {
   box-sizing: border-box;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--hospi-heading-font);
+  letter-spacing: -0.03em;
+}
+
+input,
+textarea,
+select {
+  color: #000 !important;
+  caret-color: #000;
+  -webkit-text-fill-color: #000;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #000 !important;
+  opacity: 1;
+}
+
+select option {
+  color: #000;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #000;
+  box-shadow: 0 0 0 1000px #fff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+::selection {
+  background: rgba(98, 232, 255, 0.24);
+  color: #f8fbff;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(7, 17, 31, 0.86);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid rgba(7, 17, 31, 0.86);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(98, 232, 255, 0.68), rgba(64, 142, 255, 0.62));
+}
+
+.hospi-panel {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(12, 26, 45, 0.78), rgba(8, 19, 35, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 80px rgba(3, 10, 21, 0.4);
+  backdrop-filter: blur(24px);
+}
+
+.hospi-light-panel {
+  border: 1px solid rgba(143, 174, 214, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(242, 248, 255, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 22px 56px rgba(8, 20, 38, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+.hospi-signal-dot {
+  position: relative;
+}
+
+.hospi-signal-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  background: rgba(98, 232, 255, 0.16);
+  animation: hospi-pulse 1.9s ease-out infinite;
+}
+
+@keyframes hospi-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+
+  70% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 @media print {
   aside,
   main > header,
   .non-printable {
+    display: none !important;
+  }
+
+  body {
+    color: #0f172a !important;
+    background: white !important;
+  }
+
+  body::before,
+  body::after {
     display: none !important;
   }
 
@@ -47,7 +210,8 @@ body {
     border-collapse: collapse !important;
   }
 
-  th, td {
+  th,
+  td {
     border: 1px solid #ddd !important;
     padding: 8px !important;
   }
