@@ -1,0 +1,106 @@
+﻿
+> hospi-backend@1.0.0 build
+> tsc -p tsconfig.json
+
+src/app.ts(1,25): error TS2307: Cannot find module 'compression' or its corresponding type declarations.
+src/app.ts(2,18): error TS2307: Cannot find module 'cors' or its corresponding type declarations.
+src/app.ts(3,21): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/app.ts(4,23): error TS2307: Cannot find module 'express-rate-limit' or its corresponding type declarations.
+src/app.ts(5,20): error TS2307: Cannot find module 'helmet' or its corresponding type declarations.
+src/app.ts(35,17): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/app.ts(35,23): error TS7006: Parameter 'res' implicitly has an 'any' type.
+src/config/env.ts(1,24): error TS2307: Cannot find module 'dotenv' or its corresponding type declarations.
+src/db/connect-database.ts(1,22): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/middlewares/auth.ts(1,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/middlewares/auth.ts(2,17): error TS2307: Cannot find module 'jsonwebtoken' or its corresponding type declarations.
+src/middlewares/error-handler.ts(1,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/middlewares/error-handler.ts(2,22): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/middlewares/error-handler.ts(28,60): error TS18046: 'error' is of type 'unknown'.
+src/middlewares/error-handler.ts(32,36): error TS18046: 'error' is of type 'unknown'.
+src/middlewares/error-handler.ts(32,51): error TS18046: 'error' is of type 'unknown'.
+src/middlewares/not-found.ts(1,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/middlewares/upload.ts(3,20): error TS2307: Cannot find module 'multer' or its corresponding type declarations.
+src/middlewares/upload.ts(13,17): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(13,23): error TS7006: Parameter '_file' implicitly has an 'any' type.
+src/middlewares/upload.ts(13,30): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,14): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,20): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,26): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,16): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,22): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,28): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/middlewares/validate-request.ts(1,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/app-setting/app-setting.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/app-setting/app-setting.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/app-setting/app-setting.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/appointment/appointment.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/appointment/appointment.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/appointment/appointment.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/audit-log/audit-log.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/audit-log/audit-log.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/audit-log/audit-log.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/audit-log/audit-log.service.ts(1,30): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/auth/auth.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/auth/auth.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/auth/auth.service.ts(2,39): error TS2307: Cannot find module 'jsonwebtoken' or its corresponding type declarations.
+src/modules/contact/contact.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/contact/contact.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/contact/contact.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/department/department.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/department/department.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/department/department.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/department/department.service.ts(42,28): error TS7006: Parameter 'department' implicitly has an 'any' type.
+src/modules/doctor/doctor.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/doctor/doctor.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/doctor/doctor.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/expense/expense.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/expense/expense.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/expense/expense.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/file-entry/file-entry.controller.ts(3,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/file-entry/file-entry.controller.ts(103,31): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/modules/file-entry/file-entry.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/file-entry/file-entry.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/file-entry/file-entry.service.ts(22,17): error TS2694: Namespace 'global.Express' has no exported member 'Multer'.
+src/modules/invoice/invoice.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/invoice/invoice.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/invoice/invoice.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/leave-request/leave-request.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/leave-request/leave-request.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/leave-request/leave-request.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/notice/notice.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/notice/notice.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/notice/notice.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/operation/operation.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/operation/operation.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/operation/operation.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/organization/organization.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/patient/patient.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/patient/patient.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/patient/patient.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/payment/payment.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/payment/payment.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/payment/payment.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/payroll/payroll.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/payroll/payroll.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/payroll/payroll.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/room/room.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/room/room.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/room/room.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/staff-member/staff-member.controller.ts(1,40): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/staff-member/staff-member.model.ts(1,56): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/staff-member/staff-member.routes.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/modules/user/user.model.ts(1,20): error TS2307: Cannot find module 'bcryptjs' or its corresponding type declarations.
+src/modules/user/user.model.ts(2,68): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/modules/user/user.model.ts(65,19): error TS7006: Parameter '_doc' implicitly has an 'any' type.
+src/modules/user/user.model.ts(65,25): error TS7006: Parameter 'ret' implicitly has an 'any' type.
+src/modules/user/user.model.ts(84,52): error TS7006: Parameter 'next' implicitly has an 'any' type.
+src/modules/user/user.model.ts(85,8): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/modules/user/user.model.ts(89,3): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/modules/user/user.model.ts(89,37): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/routes/index.ts(1,24): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/routes/index.ts(24,24): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/routes/index.ts(24,30): error TS7006: Parameter 'res' implicitly has an 'any' type.
+src/scripts/seed-admin.ts(1,22): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/server.ts(1,22): error TS2307: Cannot find module 'mongoose' or its corresponding type declarations.
+src/utils/api-response.ts(1,31): error TS2307: Cannot find module 'express' or its corresponding type declarations.
+src/utils/async-handler.ts(1,54): error TS2307: Cannot find module 'express' or its corresponding type declarations.

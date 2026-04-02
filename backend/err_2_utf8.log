@@ -1,0 +1,17 @@
+﻿
+> hospi-backend@1.0.0 build
+> tsc -p tsconfig.json
+
+src/middlewares/upload.ts(3,20): error TS7016: Could not find a declaration file for module 'multer'. 'D:/Personal Projects/Portfolio/Hospi/backend/node_modules/multer/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/multer` if it exists or add a new declaration (.d.ts) file containing `declare module 'multer';`
+src/middlewares/upload.ts(13,17): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(13,23): error TS7006: Parameter '_file' implicitly has an 'any' type.
+src/middlewares/upload.ts(13,30): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,14): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,20): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/middlewares/upload.ts(16,26): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,16): error TS7006: Parameter '_req' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,22): error TS7006: Parameter 'file' implicitly has an 'any' type.
+src/middlewares/upload.ts(34,28): error TS7006: Parameter 'callback' implicitly has an 'any' type.
+src/modules/file-entry/file-entry.controller.ts(47,42): error TS2339: Property 'file' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+src/modules/file-entry/file-entry.service.ts(22,17): error TS2694: Namespace 'global.Express' has no exported member 'Multer'.
